@@ -1,0 +1,778 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft JhengHei', Arial, sans-serif;
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 10px;
+    overflow: hidden;  /* 防止整體滾動 */
+}
+
+/* 頂部控制欄 */
+.header {
+    background-color: #1a1a1a;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.select-box {
+    padding: 8px 12px;
+    background-color: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.select-box:focus {
+    outline: none;
+    border-color: #0066cc;
+}
+
+.btn {
+    padding: 8px 16px;
+    background-color: #0066cc;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn:hover {
+    background-color: #0052a3;
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* 股票資訊 */
+.stock-info {
+    margin-top: 10px;
+}
+
+.stock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.stock-name {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.stock-price {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.price {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.change {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.change-pct {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.price.up, .change.up, .change-pct.up {
+    color: #ff3333;
+}
+
+.price.down, .change.down, .change-pct.down {
+    color: #00ff00;
+}
+
+.stock-details {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+}
+
+.detail-item {
+    display: flex;
+    gap: 5px;
+}
+
+.detail-item .label {
+    color: #999;
+}
+
+.detail-item .value {
+    color: #fff;
+    font-weight: bold;
+}
+
+/* 主要內容區 */
+.main-content {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* 左側走勢圖 */
+.chart-section {
+    flex: 1;
+    background-color: #1a1a1a;
+    border-radius: 5px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.chart-hint {
+    font-size: 12px;
+    color: #999;
+    font-style: italic;
+}
+
+.chart-container {
+    flex: 3;
+    position: relative;
+    min-height: 0;
+}
+
+.volume-container {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+}
+
+/* 右側面板 */
+.side-panel {
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;  /* 確保 flex 子元素可以正確縮小 */
+    overflow: hidden;  /* 防止整個面板滾動 */
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.depth-time {
+    font-size: 11px;
+    color: #0099ff;
+    font-weight: normal;
+    font-style: italic;
+}
+
+/* 五檔報價 */
+.depth-section {
+    background-color: #1a1a1a;
+    border-radius: 5px;
+    padding: 15px;
+    flex: 0 0 auto;  /* 不要自動擴展，根據內容大小 */
+    min-height: 0;
+}
+
+.depth-container {
+    margin-bottom: 10px;
+}
+
+.depth-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.depth-table th {
+    padding: 8px;
+    background-color: #2a2a2a;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #444;
+}
+
+.depth-table td {
+    padding: 6px 8px;
+    text-align: right;
+    border: 1px solid #333;
+}
+
+.depth-table td:nth-child(2) {
+    text-align: center;
+    font-weight: bold;
+}
+
+.bid-cell {
+    background-color: #ff3333;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.ask-cell {
+    background-color: #2a2a2a;
+    color: #ffffff;
+}
+
+.no-data {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+}
+
+.depth-stats {
+    display: flex;
+    justify-content: space-around;
+    padding-top: 10px;
+    border-top: 1px solid #444;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-label {
+    display: block;
+    color: #999;
+    font-size: 12px;
+    margin-bottom: 3px;
+}
+
+.stat-value {
+    display: block;
+    color: #fff;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* 成交明細 */
+.trades-section {
+    background-color: #1a1a1a;
+    border-radius: 5px;
+    padding: 15px;
+    flex: 1;  /* 佔據剩餘空間 */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;  /* 確保可以正確縮小 */
+    overflow: hidden;  /* 防止整個區塊滾動 */
+}
+
+/* 時間軸控制 */
+.timeline-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+}
+
+.timeline-label {
+    font-size: 13px;
+    color: #0099ff;
+    font-weight: bold;
+    min-width: 80px;
+}
+
+.timeline-slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #444;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.timeline-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0099ff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.timeline-slider::-webkit-slider-thumb:hover {
+    background: #00bbff;
+    transform: scale(1.2);
+}
+
+.timeline-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0099ff;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.timeline-slider::-moz-range-thumb:hover {
+    background: #00bbff;
+    transform: scale(1.2);
+}
+
+.timeline-speed {
+    font-size: 12px;
+    color: #999;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.speed-select {
+    padding: 2px 6px;
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.speed-select:focus {
+    outline: none;
+    border-color: #0099ff;
+}
+
+.trades-container {
+    flex: 1;  /* 佔據剩餘空間 */
+    overflow-y: auto;  /* 垂直滾動 */
+    overflow-x: hidden;  /* 隱藏水平滾動 */
+    min-height: 0;  /* 確保可以正確縮小 */
+}
+
+.trades-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.trades-table th {
+    padding: 8px;
+    background-color: #2a2a2a;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #444;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.trades-table td {
+    padding: 4px 6px;
+    text-align: right;
+    border-bottom: 1px solid #333;
+    font-size: 12px;
+}
+
+.trades-table td:first-child {
+    text-align: center;
+    color: #999;
+    font-size: 11px;
+}
+
+.trades-table .trade-price {
+    font-weight: bold;
+    color: #ffcc00;
+}
+
+.trade-up {
+    color: #ff3333;
+}
+
+.trade-down {
+    color: #00ff00;
+}
+
+/* 高亮行樣式 */
+.trades-table tr.highlight-row {
+    background-color: #004488 !important;
+    animation: highlightFade 3s ease-out;
+}
+
+@keyframes highlightFade {
+    0% {
+        background-color: #0066cc;
+    }
+    100% {
+        background-color: #004488;
+    }
+}
+
+.trades-table tr:hover {
+    background-color: #2a2a2a;
+    cursor: pointer;
+}
+
+/* 掛單變化歷史 */
+.depth-history-section {
+    background-color: #1a1a1a;
+    border-radius: 5px;
+    padding: 15px;
+    height: 25vh;  /* 固定為螢幕高度的 1/4 */
+    display: flex;
+    flex-direction: column;
+}
+
+.depth-history-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;  /* 佔據剩餘空間 */
+    min-height: 0;  /* 確保 flex 子元素可以正確滾動 */
+}
+
+.history-item {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+}
+
+.history-time {
+    color: #999;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.history-depth {
+    display: flex;
+    gap: 20px;
+}
+
+.history-bids, .history-asks {
+    flex: 1;
+}
+
+.history-depth h4 {
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #999;
+}
+
+.history-depth ul {
+    list-style: none;
+    font-size: 11px;
+}
+
+.history-depth li {
+    padding: 2px 0;
+}
+
+/* 滾動條樣式 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* 圖表時間軸控制 */
+.chart-timeline-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.chart-timeline-slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #444;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.chart-timeline-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0099ff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chart-timeline-slider::-webkit-slider-thumb:hover {
+    background: #00bbff;
+    transform: scale(1.2);
+}
+
+.chart-timeline-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0099ff;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.chart-timeline-slider::-moz-range-thumb:hover {
+    background: #00bbff;
+    transform: scale(1.2);
+}
+
+.timeline-zoom {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-mini {
+    padding: 4px 8px;
+    font-size: 11px;
+    background-color: #444;
+    color: #ffffff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.btn-mini:hover {
+    background-color: #555;
+}
+
+/* 響應式設計 */
+@media (max-width: 1600px) {
+    .side-panel {
+        width: 350px;  /* 中等螢幕稍微縮小右側面板 */
+    }
+}
+
+@media (max-width: 1400px) {
+    .side-panel {
+        width: 320px;  /* 較小螢幕進一步縮小 */
+    }
+
+    .section-title {
+        font-size: 14px;
+    }
+
+    .chart-hint {
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .main-content {
+        flex-direction: column;  /* 垂直排列 */
+    }
+
+    .side-panel {
+        width: 100%;
+        flex-direction: row;  /* 五檔和成交明細橫向排列 */
+        gap: 10px;
+    }
+
+    .depth-section,
+    .trades-section {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .chart-section {
+        height: 50vh;  /* 圖表區佔據上半部 */
+    }
+}
+
+@media (max-width: 768px) {
+    /* 平板和手機 */
+    .container {
+        padding: 5px;
+        gap: 5px;
+    }
+
+    .header {
+        padding: 10px;
+    }
+
+    .controls {
+        flex-wrap: wrap;
+    }
+
+    .select-box,
+    .btn {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    .stock-name {
+        font-size: 16px;
+    }
+
+    .price {
+        font-size: 20px;
+    }
+
+    .change,
+    .change-pct {
+        font-size: 14px;
+    }
+
+    .side-panel {
+        flex-direction: column;  /* 小螢幕回到垂直排列 */
+    }
+
+    .depth-section,
+    .trades-section {
+        flex: 1;
+    }
+
+    .chart-section {
+        height: 40vh;
+    }
+
+    .depth-history-section {
+        height: 20vh;
+    }
+
+    /* 優化按鈕大小 */
+    .btn-mini {
+        padding: 3px 6px;
+        font-size: 10px;
+    }
+
+    .timeline-zoom {
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .btn-mini {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    /* 小手機 */
+    body {
+        font-size: 12px;
+    }
+
+    .stock-details {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .detail-item {
+        flex: 1 1 45%;
+    }
+
+    .chart-hint {
+        display: none;  /* 隱藏提示以節省空間 */
+    }
+
+    .timeline-control {
+        flex-wrap: wrap;
+    }
+
+    .timeline-slider {
+        width: 100%;
+        order: 2;
+    }
+
+    .timeline-speed {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* 超大螢幕優化 */
+@media (min-width: 1920px) {
+    .container {
+        max-width: 1920px;
+        margin: 0 auto;
+    }
+
+    .side-panel {
+        width: 450px;  /* 超大螢幕可以顯示更多資訊 */
+    }
+
+    .depth-table td,
+    .trades-table td {
+        padding: 8px 10px;
+    }
+}
+
+/* 高度優化 */
+@media (max-height: 768px) {
+    .depth-history-section {
+        height: 20vh;  /* 低螢幕減少掛單歷史高度 */
+    }
+
+    .chart-container {
+        flex: 2.5;  /* 調整價格圖高度 */
+    }
+
+    .volume-container {
+        flex: 0.8;
+    }
+}
+
+@media (max-height: 600px) {
+    .depth-history-section {
+        height: 15vh;
+    }
+
+    .stock-details {
+        display: none;  /* 極低螢幕隱藏詳細資訊 */
+    }
+}

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTC/TSE Quote 即時瀏覽器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 頂部控制欄 -->
+        <div class="header">
+            <div class="controls">
+                <select id="dateSelect" class="select-box">
+                    <option value="">選擇日期...</option>
+                </select>
+                <select id="stockSelect" class="select-box">
+                    <option value="">選擇股票...</option>
+                </select>
+                <button id="refreshBtn" class="btn">重新整理</button>
+            </div>
+
+            <!-- 股票資訊 -->
+            <div class="stock-info" id="stockInfo" style="display: none;">
+                <div class="stock-header">
+                    <h1 class="stock-name">
+                        <span id="stockName">--</span>
+                        (<span id="stockCode">--</span>)
+                    </h1>
+                    <div class="stock-price">
+                        <span id="currentPrice" class="price">--</span>
+                        <span id="priceChange" class="change">--</span>
+                        <span id="priceChangePct" class="change-pct">--</span>
+                    </div>
+                </div>
+                <div class="stock-details">
+                    <div class="detail-item">
+                        <span class="label">成交量</span>
+                        <span id="totalVolume" class="value">--</span>張
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">最高</span>
+                        <span id="highPrice" class="value">--</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">最低</span>
+                        <span id="lowPrice" class="value">--</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">開盤</span>
+                        <span id="openPrice" class="value">--</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">均價</span>
+                        <span id="avgPrice" class="value">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要內容區 -->
+        <div class="main-content">
+            <!-- 左側：走勢圖 -->
+            <div class="chart-section">
+                <div class="chart-header">
+                    <h3 class="section-title">價格走勢</h3>
+                    <span class="chart-hint">💡 按住 Shift 拖曳選取時間範圍 | 點擊查看成交明細 | ⌨️ 快捷鍵: ↑/↓ 瀏覽交易 · 空白鍵 播放/暫停</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+                <div class="volume-container">
+                    <canvas id="volumeChart"></canvas>
+                </div>
+
+                <!-- 圖表時間軸控制 -->
+                <div class="chart-timeline-control" id="chartTimelineControl" style="display: none;">
+                    <span class="timeline-label" id="chartStartTime">--:--</span>
+                    <input type="range" id="chartTimelineSlider" class="chart-timeline-slider" min="0" max="100" value="0">
+                    <span class="timeline-label" id="chartEndTime">--:--</span>
+                    <div class="timeline-zoom">
+                        <button id="zoomInBtn" class="btn btn-mini">放大</button>
+                        <button id="zoomOutBtn" class="btn btn-mini">縮小</button>
+                        <button id="resetZoomBtn" class="btn btn-mini">重置</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：五檔與成交明細 -->
+            <div class="side-panel">
+                <!-- 五檔報價 -->
+                <div class="depth-section">
+                    <h3 class="section-title">
+                        五檔報價
+                        <span id="depthTimestamp" class="depth-time"></span>
+                    </h3>
+                    <div class="depth-container">
+                        <table class="depth-table">
+                            <thead>
+                                <tr>
+                                    <th>買進</th>
+                                    <th>價格</th>
+                                    <th>賣出</th>
+                                </tr>
+                            </thead>
+                            <tbody id="depthTableBody">
+                                <tr>
+                                    <td colspan="3" class="no-data">暫無資料</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="depth-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">內盤量</span>
+                            <span id="bidTotalVolume" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">外盤量</span>
+                            <span id="askTotalVolume" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 成交明細 -->
+                <div class="trades-section">
+                    <h3 class="section-title">
+                        成交明細
+                        <button id="playPauseBtn" class="btn btn-small" style="display: none;">▶️ 播放</button>
+                    </h3>
+
+                    <!-- 時間軸控制 -->
+                    <div class="timeline-control" id="timelineControl" style="display: none;">
+                        <span id="timelineLabel" class="timeline-label">--:--:--</span>
+                        <input type="range" id="timelineSlider" class="timeline-slider" min="0" max="100" value="0">
+                        <span class="timeline-speed">
+                            速度: <select id="playbackSpeed" class="speed-select">
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="2">2x</option>
+                                <option value="5">5x</option>
+                                <option value="10">10x</option>
+                            </select>
+                        </span>
+                    </div>
+
+                    <div class="trades-container">
+                        <table class="trades-table">
+                            <thead>
+                                <tr>
+                                    <th>時間</th>
+                                    <th>價格</th>
+                                    <th>單量</th>
+                                    <th>內外盤</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradesTableBody">
+                                <tr>
+                                    <td colspan="4" class="no-data">暫無資料</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+</body>
+</html>

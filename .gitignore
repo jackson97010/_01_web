@@ -1,0 +1,14 @@
+# 排除大型 Quote 資料檔案
+OTCQuote.*
+TSEQuote.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# 其他
+tempCodeRunnerFile.bat

@@ -1,14 +1,84 @@
-# 排除大型 Quote 資料檔案
+# ============================================
+# 大型資料檔案（不上傳到 GitHub）
+# ============================================
+
+# 原始 Quote 資料檔案
 OTCQuote.*
 TSEQuote.*
 
+# Parquet 處理後的資料
+data/
+data/processed_data/
+*.parquet
+
+# JSON API 資料（前端靜態資料）
+frontend/static/api/
+*.json (in api folders)
+
+# CSV 匯出檔案
+*.csv
+
+# 臨時測試檔案
+test_unified_timeline.html
+
+# ============================================
+# Node.js / Frontend
+# ============================================
+node_modules/
+frontend-app/node_modules/
+frontend-app/dist/
+frontend-app/build/
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ============================================
 # Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 *.egg-info/
+dist/
+build/
 
+# ============================================
+# Rust
+# ============================================
+server/rust/target/
+*.pdb
+
+# ============================================
+# Tauri (如果使用桌面版)
+# ============================================
+frontend-app/src-tauri/target/
+
+# ============================================
+# IDE
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
 # 其他
+# ============================================
 tempCodeRunnerFile.bat
+.cache/

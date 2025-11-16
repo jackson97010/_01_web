@@ -1,0 +1,20 @@
+[package]
+name = "stock-server"
+version = "1.0.0"
+edition = "2021"
+authors = ["Stock Viewer Team"]
+
+[dependencies]
+actix-web = "4"
+actix-files = "0.6"
+actix-cors = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+env_logger = "0.11"
+log = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

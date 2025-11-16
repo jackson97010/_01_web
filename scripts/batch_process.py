@@ -4,6 +4,8 @@ import re
 from datetime import datetime, timedelta
 import glob
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 def load_limit_up_list(parquet_file):
     """載入漲停清單"""
@@ -24,19 +26,22 @@ def load_limit_up_list(parquet_file):
     return date_stocks
 
 def get_target_stocks(limit_up_dict, current_date):
-    """獲取需要保存的股票（當日+前一日漲停）"""
+    """獲取需要保存的股票（當日+前一交易日漲停）"""
     target_stocks = set()
 
     # 當日漲停股票
     if current_date in limit_up_dict:
         target_stocks.update(limit_up_dict[current_date])
 
-    # 前一日漲停股票
+    # 前一交易日漲停股票
+    # 向前找最多 7 天（考慮週末+連假），找到第一個有資料的交易日
     try:
         current_dt = datetime.strptime(current_date, '%Y%m%d')
-        prev_date = (current_dt - timedelta(days=1)).strftime('%Y%m%d')
-        if prev_date in limit_up_dict:
-            target_stocks.update(limit_up_dict[prev_date])
+        for days_back in range(1, 8):
+            prev_date = (current_dt - timedelta(days=days_back)).strftime('%Y%m%d')
+            if prev_date in limit_up_dict:
+                target_stocks.update(limit_up_dict[prev_date])
+                break  # 只要找到前一個交易日就停止
     except:
         pass
 
@@ -282,11 +287,13 @@ def process_quote_file(file_path, limit_up_dict, output_base_dir):
 def main():
     """主程式"""
     print("=" * 80)
-    print("OTC/TSE Quote 批次處理程式")
+    print("OTC/TSE Quote 批次處理程式（多線程版本）")
     print("=" * 80)
 
     # 設定路徑
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)  # 上一層目錄
+    base_dir = os.path.join(project_root, 'data')
     limit_up_file = os.path.join(base_dir, 'lup_ma20_filtered.parquet')
     output_base_dir = os.path.join(base_dir, 'processed_data')
 
@@ -315,11 +322,72 @@ def main():
         print("沒有找到 Quote 檔案")
         return
 
-    # 處理每個檔案
-    for i, file_path in enumerate(quote_files, 1):
-        print(f"\n{'=' * 80}")
-        print(f"進度: {i}/{len(quote_files)}")
-        process_quote_file(file_path, limit_up_dict, output_base_dir)
+    # 預先檢查哪些日期已經完全處理完畢
+    files_to_process = []
+    for file_path in quote_files:
+        match = re.search(r'(\d{8})', os.path.basename(file_path))
+        if not match:
+            continue
+
+        date_str = match.group(1)
+        target_stocks = get_target_stocks(limit_up_dict, date_str)
+
+        if not target_stocks:
+            continue
+
+        # 檢查是否所有股票檔案都已存在
+        output_dir = os.path.join(output_base_dir, date_str)
+        all_exist = True
+        if os.path.exists(output_dir):
+            for stock in target_stocks:
+                if not os.path.exists(os.path.join(output_dir, f"{stock}.parquet")):
+                    all_exist = False
+                    break
+        else:
+            all_exist = False
+
+        if not all_exist:
+            files_to_process.append(file_path)
+        else:
+            print(f"日期 {date_str} 所有檔案已存在，跳過")
+
+    if not files_to_process:
+        print("\n所有檔案都已處理完成！")
+        return
+
+    print(f"\n需要處理 {len(files_to_process)} 個檔案")
+
+    # 使用多線程處理（建議使用 CPU 核心數）
+    max_workers = min(4, os.cpu_count() or 4)  # 最多 4 個線程
+    print(f"使用 {max_workers} 個線程並行處理")
+
+    # 用於線程安全的計數器
+    completed = {'count': 0}
+    lock = threading.Lock()
+
+    def process_with_progress(file_path):
+        """帶進度顯示的處理函數"""
+        try:
+            process_quote_file(file_path, limit_up_dict, output_base_dir)
+            with lock:
+                completed['count'] += 1
+                print(f"\n[進度: {completed['count']}/{len(files_to_process)}] 完成")
+            return True
+        except Exception as e:
+            print(f"\n處理 {file_path} 時發生錯誤: {e}")
+            return False
+
+    # 執行多線程處理
+    print("\n開始處理...")
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_with_progress, f) for f in files_to_process]
+
+        # 等待所有任務完成
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"執行錯誤: {e}")
 
     print(f"\n{'=' * 80}")
     print("批次處理完成！")

@@ -13,7 +13,7 @@ data/processed_data/
 
 # JSON API 資料（前端靜態資料）
 # 允許 api 資料夾和 JSON 檔案上傳
-
+frontend/static/api/**/*.json
 # CSV 匯出檔案
 *.csv
 

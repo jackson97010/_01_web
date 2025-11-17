@@ -12,8 +12,7 @@ data/processed_data/
 *.parquet
 
 # JSON API 資料（前端靜態資料）
-frontend/static/api/
-*.json (in api folders)
+# 允許 api 資料夾和 JSON 檔案上傳
 
 # CSV 匯出檔案
 *.csv

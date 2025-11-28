@@ -90,9 +90,28 @@ _01_web/
 
 - **Node.js 18+**
 - **npm** 或 **yarn**
-- **Python 3.11+**（僅用於資料處理）
+- **Python 3.8+**（用於資料處理）
 
-### 安裝步驟
+### 方式 1：使用啟動腳本（最簡單）⭐
+
+**Windows 用戶**：
+```bash
+# 雙擊執行（使用 Node.js 後端）
+start-dev.bat
+
+# 或使用 Python Parquet Server（節省空間）
+start-parquet.bat
+```
+
+腳本會自動：
+1. 轉換資料（如果需要）
+2. 啟動後端 (http://localhost:5000)
+3. 啟動前端 (http://localhost:3000)
+4. 開啟瀏覽器
+
+### 方式 2：手動啟動
+
+**首次設定**：
 
 1. **Clone 專案**
 ```bash
@@ -100,26 +119,26 @@ git clone https://github.com/your-username/_01_web.git
 cd _01_web
 ```
 
-2. **安裝前端依賴**
+2. **安裝依賴**
 ```bash
+# 前端
 cd frontend-app
 npm install
-```
 
-3. **安裝後端依賴**
-```bash
+# 後端
 cd ../server/nodejs
 npm install
-```
 
-4. **安裝 Python 依賴**（僅用於資料處理）
-```bash
+# Python（資料處理）
 pip install pandas pyarrow
 ```
 
-### 啟動應用
+3. **轉換資料**
+```bash
+python scripts\convert_to_json.py
+```
 
-**開發模式（推薦）**
+**日常開發**：
 
 開啟兩個終端視窗：
 
@@ -132,7 +151,7 @@ npm run dev
 # 終端 2: 啟動前端開發伺服器
 cd frontend-app
 npm run dev
-# 前端將在 http://localhost:3000 運行（如果 3000 被佔用會自動選擇其他port）
+# 前端將在 http://localhost:3000 運行
 ```
 
 **生產模式**
@@ -150,49 +169,66 @@ npm start
 
 訪問: **http://localhost:5000**
 
-**使用 Python 後端（備用）**
+### 替代方案：Python 後端
 
-如果不想使用 Node.js 後端，仍可使用 Python：
-
+**使用 Python Parquet Server（推薦，節省空間）**：
 ```bash
 cd server/python
-python static_server.py
+python parquet_server.py --port 5000
 ```
+- 無需預先轉換 JSON
+- 即時從 Parquet 轉換
+- 節省 80-90% 儲存空間
+
+**使用 Python 靜態 Server**：
+```bash
+cd server/python
+python static_server.py --port 5000
+```
+- 需要預先轉換 JSON（執行 `convert_to_json.py`）
 
 ---
 
 ## 📊 資料處理流程
 
-### 1. 批次處理（Quote → Parquet）
+### 1. 解碼（Quote → Parquet）⭐ 新版
 
-將原始 Quote 檔案轉換成 Parquet 格式：
+將原始 Quote 檔案正確解碼成 Parquet 格式：
 
 ```bash
-cd scripts
-python batch_process.py
+# 批次解碼所有日期
+python scripts\batch_decode_quotes.py
+
+# 或單日測試（2025-10-31）
+python scripts\decode_quotes.py
+
+# 驗證解碼結果
+python scripts\verify_decode.py
 ```
 
 功能：
 - 讀取 `data/OTCQuote.*` 和 `data/TSEQuote.*`
+- 正確解碼價格（除以 10000）
 - 篩選漲停股票（當日 + 前一交易日）
-- 輸出到 `data/processed_data/{date}/{stock}.parquet`
-- 使用多線程並行處理
+- 輸出到 `data/decoded_quotes/{date}/{stock}.parquet`
+- 支援多線程並行處理
+- 自動跳過已處理檔案
 
-### 2. 預處理（Parquet → JSON）
+### 2. 轉換（Parquet → JSON）可選
 
-將 Parquet 轉換成靜態 JSON（提升 50-100 倍效能）：
+將 Parquet 轉換成靜態 JSON：
 
 ```bash
-cd scripts
-python preprocess.py
+python scripts\convert_to_json.py
 ```
 
 功能：
-- 讀取 `data/processed_data/` 下的 Parquet 檔案
+- 讀取 `data/decoded_quotes/` 下的 Parquet 檔案
 - 計算所有指標（VWAP、內外盤、統計資料）
 - 輸出到 `frontend/static/api/{date}/{stock}.json`
-- 使用多進程並行處理
 - 自動跳過已存在的檔案
+
+**注意**：如果使用 `parquet_server.py`，可跳過此步驟（即時轉換）
 
 ---
 

@@ -10,7 +10,18 @@
       "Bash(git reset:*)",
       "Bash(nul)",
       "Bash(git update-ref:*)",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(python -c:*)",
+      "Bash(python test_decode.py:*)",
+      "Bash(python scripts/decode_quotes.py:*)",
+      "Bash(python scripts/verify_decode.py:*)",
+      "Bash(python scripts/convert_to_json.py:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(start /B python:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(python:*)",
+      "Bash(cargo build:*)"
     ],
     "deny": [],
     "ask": []

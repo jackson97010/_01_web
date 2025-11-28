@@ -8,17 +8,18 @@ TSEQuote.*
 
 # Parquet 處理後的資料
 data/
-data/processed_data/
 *.parquet
 
-# JSON API 資料（前端靜態資料）
-# 允許 api 資料夾和 JSON 檔案上傳
-frontend/static/api/**/*.json
+# JSON API 資料（太大，不上傳）
+api/
+frontend/static/api/
+
 # CSV 匯出檔案
 *.csv
 
 # 臨時測試檔案
 test_unified_timeline.html
+*.html
 
 # ============================================
 # Node.js / Frontend
@@ -52,8 +53,10 @@ build/
 # ============================================
 # Rust
 # ============================================
+rust/target/
 server/rust/target/
 *.pdb
+Cargo.lock
 
 # ============================================
 # Tauri (如果使用桌面版)
@@ -68,6 +71,7 @@ frontend-app/src-tauri/target/
 *.swp
 *.swo
 *~
+.claude/
 
 # ============================================
 # OS

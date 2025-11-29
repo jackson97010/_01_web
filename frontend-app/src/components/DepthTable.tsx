@@ -7,11 +7,11 @@ interface Props {
 export default function DepthTable({ depth }: Props) {
   if (!depth) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+      <div className="bg-black rounded border border-gray-800 p-6">
+        <h3 className="text-sm font-bold mb-4 text-yellow-400">
           五檔報價
         </h3>
-        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+        <p className="text-gray-400 text-center py-8 text-sm">
           無五檔資料
         </p>
       </div>
@@ -24,47 +24,46 @@ export default function DepthTable({ depth }: Props) {
   );
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="bg-black rounded border border-gray-800">
+      <div className="p-3 border-b border-gray-800">
+        <h3 className="text-sm font-bold text-yellow-400">
           五檔報價
         </h3>
         {depth.timestamp && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">
-            更新時間: {depth.timestamp}
+          <p className="timestamp mt-1">
+            更新: {depth.timestamp}
           </p>
         )}
       </div>
 
-      <div className="p-4">
-        <table className="w-full text-sm">
+      <div className="p-3">
+        <table className="depth-table">
           <thead>
-            <tr className="text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-              <th className="pb-2 text-left">買量</th>
-              <th className="pb-2 text-center">買價</th>
-              <th className="pb-2 text-center">賣價</th>
-              <th className="pb-2 text-right">賣量</th>
+            <tr>
+              <th className="text-left">買量</th>
+              <th className="text-center">買價</th>
+              <th className="text-center">賣價</th>
+              <th className="text-right">賣量</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          <tbody>
             {[0, 1, 2, 3, 4].map((index) => {
               const bid = depth.bids[index];
-              // 賣價正常順序（Ask1 在最上面，Ask5 在最下面）
               const ask = depth.asks[index];
 
               return (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <tr key={index}>
                   {/* 買量 */}
-                  <td className="py-2 text-left">
+                  <td className="text-left">
                     {bid && (
                       <div className="relative">
                         <div
-                          className="absolute right-0 top-0 bottom-0 bg-red-100 dark:bg-red-900/30 rounded"
+                          className="bid-bar absolute right-0 top-0 bottom-0"
                           style={{
                             width: `${(bid.volume / maxVolume) * 100}%`,
                           }}
                         />
-                        <span className="relative font-mono text-red-600 dark:text-red-400">
+                        <span className="relative bid-volume mono-num">
                           {bid.volume}
                         </span>
                       </div>
@@ -72,34 +71,34 @@ export default function DepthTable({ depth }: Props) {
                   </td>
 
                   {/* 買價 */}
-                  <td className="py-2 text-center">
+                  <td className="text-center">
                     {bid && (
-                      <span className="font-semibold text-red-600 dark:text-red-400">
-                        {bid.price.toFixed(2)}
+                      <span className="bid-price mono-num">
+                        {bid.price === 0 || bid.price < 0.01 ? '市價' : bid.price.toFixed(2)}
                       </span>
                     )}
                   </td>
 
                   {/* 賣價 */}
-                  <td className="py-2 text-center">
+                  <td className="text-center">
                     {ask && (
-                      <span className="font-semibold text-green-600 dark:text-green-400">
-                        {ask.price.toFixed(2)}
+                      <span className="ask-price mono-num">
+                        {ask.price === 0 || ask.price < 0.01 ? '市價' : ask.price.toFixed(2)}
                       </span>
                     )}
                   </td>
 
                   {/* 賣量 */}
-                  <td className="py-2 text-right">
+                  <td className="text-right">
                     {ask && (
                       <div className="relative">
                         <div
-                          className="absolute left-0 top-0 bottom-0 bg-green-100 dark:bg-green-900/30 rounded"
+                          className="ask-bar absolute left-0 top-0 bottom-0"
                           style={{
                             width: `${(ask.volume / maxVolume) * 100}%`,
                           }}
                         />
-                        <span className="relative font-mono text-green-600 dark:text-green-400">
+                        <span className="relative ask-volume mono-num">
                           {ask.volume}
                         </span>
                       </div>
@@ -112,16 +111,16 @@ export default function DepthTable({ depth }: Props) {
         </table>
 
         {/* 總量統計 */}
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between text-xs">
-          <div className="text-red-600 dark:text-red-400">
+        <div className="mt-3 pt-3 border-t border-gray-800 flex justify-between text-xs">
+          <div className="bid-volume">
             內盤總量:{' '}
-            <span className="font-semibold">
+            <span className="font-bold mono-num">
               {depth.bids.reduce((sum, b) => sum + b.volume, 0)}
             </span>
           </div>
-          <div className="text-green-600 dark:text-green-400">
+          <div className="ask-volume">
             外盤總量:{' '}
-            <span className="font-semibold">
+            <span className="font-bold mono-num">
               {depth.asks.reduce((sum, a) => sum + a.volume, 0)}
             </span>
           </div>

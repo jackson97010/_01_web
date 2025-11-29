@@ -161,22 +161,27 @@ async function convertParquetToJson(parquetPath: string): Promise<any> {
       );
       const prices = tradesSorted.map((t) => t.Price);
       const volumes = tradesSorted.map((t) => t.Volume);
+      const flags = tradesSorted.map((t) => t.Flag);
 
-      // Cumulative volumes
+      // Cumulative volumes (只計算 flag=0 的正式交易)
       const totalVolumes: number[] = [];
       let cumVol = 0;
-      for (const vol of volumes) {
-        cumVol += vol;
+      for (let i = 0; i < tradesSorted.length; i++) {
+        if (tradesSorted[i].Flag === 0) {
+          cumVol += tradesSorted[i].Volume;
+        }
         totalVolumes.push(cumVol);
       }
 
-      // VWAP
+      // VWAP (只計算 flag=0 的正式交易)
       const vwap: number[] = [];
       let cumAmount = 0;
       let cumVolume = 0;
       for (let i = 0; i < tradesSorted.length; i++) {
-        cumAmount += tradesSorted[i].Price * tradesSorted[i].Volume;
-        cumVolume += tradesSorted[i].Volume;
+        if (tradesSorted[i].Flag === 0) {
+          cumAmount += tradesSorted[i].Price * tradesSorted[i].Volume;
+          cumVolume += tradesSorted[i].Volume;
+        }
         vwap.push(cumVolume > 0 ? cumAmount / cumVolume : 0);
       }
 
@@ -186,6 +191,7 @@ async function convertParquetToJson(parquetPath: string): Promise<any> {
         volumes,
         total_volumes: totalVolumes,
         vwap,
+        flags,
       };
     }
 

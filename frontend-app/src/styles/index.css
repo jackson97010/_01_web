@@ -2,26 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 股票看盤軟體風格：深色主題 + 等寬字體 */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Consolas', 'Monaco', 'Courier New', 'Microsoft JhengHei', monospace;
+  line-height: 1.4;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(0, 0, 0, 0.87);
-  background-color: #f9fafb;
+  color-scheme: dark;
+  color: #ffffff;
+  background-color: #000000;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #111827;
-  }
 }
 
 * {
@@ -32,41 +26,132 @@
 
 body {
   min-height: 100vh;
+  background-color: #000000;
+  color: #ffffff;
 }
 
 #root {
   min-height: 100vh;
 }
 
-/* 自訂捲軸樣式 */
+/* 自訂捲軸樣式（深色主題）*/
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #0a0a0a;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: #333333;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #555555;
 }
 
-@media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-track {
-    background: #1e293b;
-  }
+/* 股票價格顏色 */
+.price-up {
+  color: #ff4444;
+}
 
-  ::-webkit-scrollbar-thumb {
-    background: #475569;
-  }
+.price-down {
+  color: #00ff00;
+}
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
-  }
+.price-equal {
+  color: #ffffff;
+}
+
+/* 漲停板背景 */
+.limit-up-bg {
+  background-color: rgba(255, 68, 68, 0.2);
+}
+
+.limit-down-bg {
+  background-color: rgba(0, 255, 0, 0.2);
+}
+
+/* 成交明細表格樣式 */
+table.trade-table {
+  font-size: 12px;
+  width: 100%;
+}
+
+table.trade-table th {
+  background-color: #1a1a1a;
+  color: #888888;
+  font-weight: normal;
+  padding: 8px 4px;
+  border-bottom: 1px solid #333333;
+}
+
+table.trade-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #0a0a0a;
+}
+
+table.trade-table tr:hover {
+  background-color: #0f0f0f;
+}
+
+/* 五檔報價樣式 */
+.depth-table {
+  font-size: 13px;
+  width: 100%;
+}
+
+.depth-table th {
+  background-color: #1a1a1a;
+  color: #888888;
+  font-weight: normal;
+  padding: 6px 4px;
+  border-bottom: 1px solid #333333;
+}
+
+.depth-table td {
+  padding: 4px;
+}
+
+/* 買盤（紅色）*/
+.bid-price {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+.bid-volume {
+  color: #ff4444;
+}
+
+.bid-bar {
+  background: linear-gradient(to left, rgba(255, 68, 68, 0.3), rgba(255, 68, 68, 0.1));
+}
+
+/* 賣盤（綠色）*/
+.ask-price {
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.ask-volume {
+  color: #00ff00;
+}
+
+.ask-bar {
+  background: linear-gradient(to right, rgba(0, 255, 0, 0.3), rgba(0, 255, 0, 0.1));
+}
+
+/* 時間戳樣式 */
+.timestamp {
+  color: #888888;
+  font-size: 11px;
+}
+
+/* 數字等寬對齊 */
+.mono-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }

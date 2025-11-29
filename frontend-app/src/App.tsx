@@ -42,38 +42,38 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-black">
       {/* 頂部導航欄 */}
       <Header />
 
       {/* 主要內容區 */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-4">
         {loading && (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400"></div>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-red-800 dark:text-red-200">{error}</p>
+          <div className="bg-red-900/20 border border-red-600 rounded p-4">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
         {!loading && !error && stockData && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* 時間軸控制 */}
             <TimelineControls />
 
             {/* 主要內容 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* 左側：圖表區 */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-2 space-y-4">
                 <StockChart data={stockData} />
               </div>
 
               {/* 右側：五檔與成交明細 */}
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <DepthTable depth={getCurrentDepth()} />
                 <TradeList trades={stockData.trades} />
               </div>
@@ -83,7 +83,7 @@ function App() {
 
         {!loading && !error && !stockData && (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">
+            <p className="text-gray-400 text-sm">
               請選擇日期和股票代碼開始查看
             </p>
           </div>

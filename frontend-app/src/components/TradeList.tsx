@@ -13,11 +13,11 @@ export default function TradeList({ trades }: Props) {
 
   if (!trades || trades.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+      <div className="bg-black border border-gray-800 rounded p-6">
+        <h3 className="text-sm font-bold mb-4 text-yellow-400">
           成交明細
         </h3>
-        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+        <p className="text-gray-400 text-center py-8 text-sm">
           無成交資料
         </p>
       </div>
@@ -36,62 +36,75 @@ export default function TradeList({ trades }: Props) {
   const displayTrades = expanded ? filteredTrades : filteredTrades.slice(0, 20);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="bg-black border border-gray-800 rounded">
+      <div className="p-3 border-b border-gray-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <h3 className="text-sm font-bold text-yellow-400">
             成交明細
           </h3>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500 font-mono">
             共 {filteredTrades.length} 筆
           </span>
         </div>
       </div>
 
       <div className="overflow-y-auto max-h-96">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-            <tr className="text-gray-600 dark:text-gray-400">
-              <th className="py-2 px-3 text-left">時間</th>
-              <th className="py-2 px-3 text-right">價格</th>
-              <th className="py-2 px-3 text-right">單量</th>
-              <th className="py-2 px-3 text-center">內外盤</th>
+        <table className="trade-table">
+          <thead className="sticky top-0">
+            <tr>
+              <th className="text-left">時間</th>
+              <th className="text-right">價格</th>
+              <th className="text-right">單量</th>
+              <th className="text-center">內外盤</th>
+              <th className="text-center">旗標</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          <tbody>
             {displayTrades.map((trade, index) => (
-              <tr
-                key={index}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-              >
-                <td className="py-1.5 px-3 text-left font-mono text-gray-700 dark:text-gray-300">
+              <tr key={index}>
+                <td className="text-left timestamp">
                   {trade.time}
                 </td>
                 <td
-                  className={`py-1.5 px-3 text-right font-semibold ${
-                    trade.inner_outer === '外盤'
-                      ? 'text-red-600 dark:text-red-400'
+                  className={`text-right font-bold mono-num ${
+                    trade.flag === 1
+                      ? 'text-gray-500'
+                      : trade.inner_outer === '外盤'
+                      ? 'price-up'
                       : trade.inner_outer === '內盤'
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-gray-700 dark:text-gray-300'
+                      ? 'price-down'
+                      : 'text-white'
                   }`}
                 >
                   {trade.price.toFixed(2)}
                 </td>
-                <td className="py-1.5 px-3 text-right font-mono text-gray-700 dark:text-gray-300">
+                <td className="text-right mono-num text-gray-400">
                   {trade.volume}
                 </td>
-                <td className="py-1.5 px-3 text-center">
+                <td className="text-center">
                   <span
                     className={`inline-block px-2 py-0.5 rounded text-xs ${
-                      trade.inner_outer === '外盤'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                      trade.flag === 1
+                        ? 'bg-gray-800 text-gray-500'
+                        : trade.inner_outer === '外盤'
+                        ? 'bg-red-900/30 price-up'
                         : trade.inner_outer === '內盤'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        ? 'bg-green-900/30 price-down'
+                        : 'bg-gray-800 text-gray-400'
                     }`}
                   >
                     {trade.inner_outer}
+                  </span>
+                </td>
+                <td className="text-center">
+                  <span
+                    className={`inline-block px-2 py-0.5 rounded text-xs ${
+                      trade.flag === 1
+                        ? 'bg-gray-700 text-gray-400'
+                        : 'bg-gray-900 text-gray-500'
+                    }`}
+                  >
+                    {trade.flag === 1 ? '試撮' : '正式'}
                   </span>
                 </td>
               </tr>
@@ -101,20 +114,20 @@ export default function TradeList({ trades }: Props) {
       </div>
 
       {filteredTrades.length > 20 && (
-        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-3 border-t border-gray-800">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+            className="w-full py-2 px-4 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-yellow-400 rounded transition-colors flex items-center justify-center gap-2 text-xs font-mono"
           >
             {expanded ? (
               <>
-                <ChevronUp className="w-4 h-4" />
+                <ChevronUp className="w-3 h-3" />
                 收起
               </>
             ) : (
               <>
-                <ChevronDown className="w-4 h-4" />
-                顯示全部 ({filteredTrades.length} 筆)
+                <ChevronDown className="w-3 h-3" />
+                顯示全部 ({filteredTrades.length})
               </>
             )}
           </button>

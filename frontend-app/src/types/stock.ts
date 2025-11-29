@@ -5,6 +5,7 @@ export interface ChartData {
   volumes: number[];
   total_volumes: number[];
   vwap: number[];
+  flags: number[]; // 0: 正式交易, 1: 試撮
 }
 
 // 五檔報價型別

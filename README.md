@@ -105,18 +105,14 @@ _01_web/
 
 **Windows 用戶**：
 ```bash
-# 雙擊執行（使用 Node.js 後端）
+# 雙擊執行或在命令列輸入
 start-dev.bat
-
-# 或使用 Python Parquet Server（節省空間）
-start-parquet.bat
 ```
 
 腳本會自動：
-1. 轉換資料（如果需要）
-2. 啟動後端 (http://localhost:5000)
-3. 啟動前端 (http://localhost:3000)
-4. 開啟瀏覽器
+1. 啟動後端 (http://localhost:5000)
+2. 啟動前端 (http://localhost:3000)
+3. 5秒後自動開啟瀏覽器
 
 ### 方式 2：手動啟動
 
@@ -456,9 +452,7 @@ git push
 
 ---
 
-## 🔧 程式碼優化 ⭐ 新增
-
-本專案已進行全面的程式碼重構，詳見 [CODE_REFACTORING_GUIDE.md](CODE_REFACTORING_GUIDE.md)
+## 🔧 程式碼優化 ⭐
 
 ### 主要改進
 
@@ -468,13 +462,13 @@ git push
 - ✅ **集中配置**：所有配置集中管理
 - ✅ **更好的效能**：優化的多線程處理
 
-### 推薦使用新版腳本
+### 推薦使用優化版腳本
 
-| 功能 | 新版（推薦） | 舊版（保留） |
-|------|-------------|-------------|
-| 批次解碼 | `batch_decode.py` | `batch_decode_quotes.py` |
-| 資料轉換 | `data_convert.py` | `convert_to_json.py` |
-| 股票查詢 | `query_stock.py` | `get_single_stock_data.py` |
+| 功能 | 優化版（推薦） | 說明 |
+|------|-------------|------|
+| 批次解碼 | `batch_decode.py` | 解碼 Quote 檔案為 Parquet |
+| 資料轉換 | `data_convert.py` | Parquet 轉 JSON |
+| 股票查詢 | `query_stock.py` | 單一股票資料查詢 |
 
 ---
 

@@ -1,0 +1,19 @@
+# Rust 編譯產物
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock（binary 專案通常會提交，library 則不提交）
+# 這裡我們保留它以確保依賴版本一致性
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

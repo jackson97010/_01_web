@@ -122,6 +122,9 @@ export default function TimelineControls() {
             <option value="2">2x</option>
             <option value="5">5x</option>
             <option value="10">10x</option>
+            <option value="20">20x</option>
+            <option value="30">30x</option>
+            <option value="50">50x</option>
           </select>
         </div>
       </div>

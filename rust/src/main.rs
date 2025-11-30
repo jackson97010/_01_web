@@ -22,6 +22,7 @@ struct Trade {
     time: String,
     price: f64,
     volume: i64,
+    total_volume: i64,  // 累積總量
     inner_outer: String,
     flag: i64,
 }
@@ -79,6 +80,7 @@ struct TradeRecord {
     price: f64,
     volume: i64,
     flag: i64,
+    inner_outer: String,  // 從 Parquet 讀取（Python 解碼時計算）
 }
 
 #[derive(Debug, Clone)]
@@ -104,20 +106,6 @@ fn extract_date_from_timestamp(timestamp_us: i64) -> String {
         Some(datetime) => datetime.format("%Y%m%d").to_string(),
         None => "19700101".to_string(),
     }
-}
-
-fn determine_inner_outer(current_price: f64, prev_bid1: Option<f64>, prev_ask1: Option<f64>) -> String {
-    if let Some(ask1) = prev_ask1 {
-        if current_price >= ask1 {
-            return "outer".to_string();  // 外盤（買進）
-        }
-    }
-    if let Some(bid1) = prev_bid1 {
-        if current_price <= bid1 {
-            return "inner".to_string();  // 內盤（賣出）
-        }
-    }
-    "neutral".to_string()  // 中立
 }
 
 // ==================== Parquet Reading ====================
@@ -206,12 +194,15 @@ fn read_parquet_file(path: &Path) -> Result<(Vec<TradeRecord>, Vec<DepthRecord>,
                 let price = get_float_value(&batch, "Price", i)?;
                 let volume = get_int_value(&batch, "Volume", i)?;
                 let flag = get_int_value(&batch, "Flag", i)?;
+                let inner_outer = get_optional_string_value(&batch, "InnerOuter", i)
+                    .unwrap_or_else(|| "–".to_string());
 
                 trades.push(TradeRecord {
                     datetime,
                     price,
                     volume,
                     flag,
+                    inner_outer,
                 });
             } else if row_type == "Depth" {
                 let mut bid_prices = [None; 5];
@@ -297,6 +288,25 @@ fn get_optional_int_value(batch: &arrow::record_batch::RecordBatch, col_name: &s
     }
 }
 
+fn get_string_value(batch: &arrow::record_batch::RecordBatch, col_name: &str, index: usize) -> Result<String> {
+    let col = batch
+        .column_by_name(col_name)
+        .context(format!("{} column not found", col_name))?;
+
+    if let Some(string_array) = col.as_any().downcast_ref::<StringArray>() {
+        Ok(string_array.value(index).to_string())
+    } else {
+        anyhow::bail!("{} column is not StringArray", col_name)
+    }
+}
+
+fn get_optional_string_value(batch: &arrow::record_batch::RecordBatch, col_name: &str, index: usize) -> Option<String> {
+    batch
+        .column_by_name(col_name)
+        .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+        .and_then(|arr| if arr.is_null(index) { None } else { Some(arr.value(index).to_string()) })
+}
+
 // ==================== Data Processing ====================
 
 fn process_stock_file(parquet_path: &Path, output_path: &Path) -> Result<bool> {
@@ -357,35 +367,36 @@ fn process_stock_file(parquet_path: &Path, output_path: &Path) -> Result<bool> {
     Ok(true)
 }
 
-fn process_trades(trades: &mut [TradeRecord], depths: &[DepthRecord]) -> Result<Vec<Trade>> {
-    // Sort trades by datetime descending (newest first)
-    trades.sort_by(|a, b| b.datetime.cmp(&a.datetime));
+fn process_trades(trades: &mut [TradeRecord], _depths: &[DepthRecord]) -> Result<Vec<Trade>> {
+    // Filter out trial trades (flag=1, before 09:00)
+    // flag=0: 一般揭示（正常交易）, flag=1: 試算揭示（試撮）
+    let mut filtered_trades: Vec<_> = trades.iter()
+        .filter(|t| t.flag == 0)  // 只保留一般揭示的交易
+        .cloned()
+        .collect();
+
+    // Sort trades by datetime ascending (oldest first) for cumulative calculation
+    filtered_trades.sort_by(|a, b| a.datetime.cmp(&b.datetime));
 
     let mut result = Vec::new();
+    let mut cumulative_volume = 0i64;  // 累積總量
 
-    for trade in trades.iter() {
-        // Find previous depth before this trade
-        let prev_depth = depths
-            .iter()
-            .filter(|d| d.datetime < trade.datetime)
-            .last();
+    for trade in filtered_trades.iter() {
+        cumulative_volume += trade.volume;  // 累加成交量
 
-        let (prev_bid1, prev_ask1) = if let Some(depth) = prev_depth {
-            (depth.bid_prices[0], depth.ask_prices[0])
-        } else {
-            (None, None)
-        };
-
-        let inner_outer = determine_inner_outer(trade.price, prev_bid1, prev_ask1);
-
+        // 直接使用從 Parquet 讀取的 InnerOuter 欄位（Python 解碼時已計算）
         result.push(Trade {
             time: timestamp_to_datetime_str(trade.datetime),
             price: trade.price,
             volume: trade.volume,
-            inner_outer,
+            total_volume: cumulative_volume,  // 累積總量
+            inner_outer: trade.inner_outer.clone(),
             flag: trade.flag,
         });
     }
+
+    // Reverse to show newest first (descending order)
+    result.reverse();
 
     Ok(result)
 }
@@ -422,8 +433,11 @@ fn process_depth_history(depths: &[DepthRecord]) -> Result<Vec<DepthSnapshot>> {
 }
 
 fn process_chart(trades: &[TradeRecord]) -> Result<Chart> {
-    // Sort by datetime ascending
-    let mut sorted_trades = trades.to_vec();
+    // Filter out trial trades (flag=1) and sort by datetime ascending
+    let mut sorted_trades: Vec<_> = trades.iter()
+        .filter(|t| t.flag == 0)  // 只保留一般揭示的交易
+        .cloned()
+        .collect();
     sorted_trades.sort_by(|a, b| a.datetime.cmp(&b.datetime));
 
     let timestamps: Vec<String> = sorted_trades
@@ -470,8 +484,11 @@ fn process_chart(trades: &[TradeRecord]) -> Result<Chart> {
 }
 
 fn calculate_stats(trades: &[TradeRecord]) -> Result<Stats> {
-    // Sort by datetime ascending
-    let mut sorted_trades = trades.to_vec();
+    // Filter out trial trades (flag=1) and sort by datetime ascending
+    let mut sorted_trades: Vec<_> = trades.iter()
+        .filter(|t| t.flag == 0)  // 只保留一般揭示的交易
+        .cloned()
+        .collect();
     sorted_trades.sort_by(|a, b| a.datetime.cmp(&b.datetime));
 
     let open_price = sorted_trades.first().unwrap().price;
@@ -519,7 +536,8 @@ fn main() -> Result<()> {
 
     // Get paths
     let current_dir = std::env::current_dir()?;
-    let project_root = current_dir;
+    // Go up one directory to get project root (since we're in rust/ subdirectory)
+    let project_root = current_dir.parent().unwrap_or(&current_dir);
     let decoded_dir = project_root.join("data").join("decoded_quotes");
     let output_dir = project_root.join("frontend").join("static").join("api");
 

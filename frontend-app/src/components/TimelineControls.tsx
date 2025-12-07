@@ -39,6 +39,15 @@ export default function TimelineControls() {
   const maxIndex = stockData.unifiedTimeline.length - 1;
   const currentTime = stockData.unifiedTimeline[currentTimeIndex];
 
+  // 提取時間部分（HH:MM:SS）
+  const formatTime = (timestamp: string) => {
+    const parts = timestamp.split(' ');
+    if (parts.length >= 2) {
+      return parts[1].substring(0, 8); // HH:MM:SS
+    }
+    return timestamp;
+  };
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCurrentTimeIndex(parseInt(e.target.value, 10));
   };
@@ -92,7 +101,7 @@ export default function TimelineControls() {
             className="flex-1 h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-400"
           />
           <span className="text-xs font-mono text-yellow-400 min-w-[100px]">
-            {currentTime}
+            {formatTime(currentTime)}
           </span>
         </div>
 

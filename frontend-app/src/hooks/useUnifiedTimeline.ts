@@ -9,17 +9,33 @@ export function useUnifiedTimeline(stockData: StockData | null) {
   return useMemo(() => {
     if (!stockData) return null;
 
+    // 過濾函數：只保留 09:00 之後的時間
+    const filterTime = (timeStr: string) => {
+      const timePart = timeStr.split(' ')[1];
+      if (!timePart) return false;
+      const hour = parseInt(timePart.split(':')[0]);
+      return hour >= 9;
+    };
+
     // 收集所有時間戳
     const timeSet = new Set<string>();
 
-    // 添加成交資料的時間
+    // 添加成交資料的時間（只保留 09:00 之後）
     if (stockData.chart?.timestamps) {
-      stockData.chart.timestamps.forEach(t => timeSet.add(t));
+      stockData.chart.timestamps.forEach(t => {
+        if (filterTime(t)) {
+          timeSet.add(t);
+        }
+      });
     }
 
-    // 添加五檔資料的時間
+    // 添加五檔資料的時間（只保留 09:00 之後）
     if (stockData.depth_history) {
-      stockData.depth_history.forEach(d => timeSet.add(d.timestamp));
+      stockData.depth_history.forEach(d => {
+        if (filterTime(d.timestamp)) {
+          timeSet.add(d.timestamp);
+        }
+      });
     }
 
     // 排序所有時間戳

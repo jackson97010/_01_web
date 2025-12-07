@@ -86,7 +86,7 @@ def load_parquet_to_dataframe(parquet_path: Path) -> pd.DataFrame:
 
 def read_quote_file(file_path: Path, target_stocks: Set[str], date_str: str) -> Dict[str, list]:
     """
-    讀取 Quote 檔案並解析指定股票的資料
+    讀取 Quote 檔案並解析指定股票的資料，並判斷內外盤
 
     Args:
         file_path: Quote 檔案路徑
@@ -94,13 +94,16 @@ def read_quote_file(file_path: Path, target_stocks: Set[str], date_str: str) -> 
         date_str: 日期字串 (YYYYMMDD)
 
     Returns:
-        股票代碼到記錄列表的字典 {stock_code: [record, ...]}
+        (股票代碼到記錄列表的字典, 統計資料)
     """
     from .parser import parse_trade_line, parse_depth_line
 
     # 初始化資料容器
     stock_data = {stock: [] for stock in target_stocks}
     stats = {'trade': 0, 'depth': 0, 'error': 0}
+
+    # 記錄每支股票的最新五檔 (用於判斷內外盤)
+    latest_depth = {}
 
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -121,6 +124,18 @@ def read_quote_file(file_path: Path, target_stocks: Set[str], date_str: str) -> 
                 if line.startswith('Trade,'):
                     parsed = parse_trade_line(line, date_str)
                     if parsed:
+                        # 判斷內外盤（使用之前的五檔資料）
+                        inner_outer = '–'
+                        if stock_code in latest_depth:
+                            prev_bid1 = latest_depth[stock_code].get('Bid1_Price')
+                            prev_ask1 = latest_depth[stock_code].get('Ask1_Price')
+
+                            if prev_ask1 is not None and parsed['Price'] >= prev_ask1:
+                                inner_outer = '外盤'
+                            elif prev_bid1 is not None and parsed['Price'] <= prev_bid1:
+                                inner_outer = '內盤'
+
+                        parsed['InnerOuter'] = inner_outer
                         stock_data[stock_code].append(parsed)
                         stats['trade'] += 1
                     else:
@@ -129,6 +144,8 @@ def read_quote_file(file_path: Path, target_stocks: Set[str], date_str: str) -> 
                 elif line.startswith('Depth,'):
                     parsed = parse_depth_line(line, date_str)
                     if parsed:
+                        # 更新最新五檔資料
+                        latest_depth[stock_code] = parsed
                         stock_data[stock_code].append(parsed)
                         stats['depth'] += 1
                     else:
@@ -136,6 +153,6 @@ def read_quote_file(file_path: Path, target_stocks: Set[str], date_str: str) -> 
 
     except Exception as e:
         print(f"  讀取錯誤: {e}")
-        return {}
+        return {}, stats
 
     return stock_data, stats

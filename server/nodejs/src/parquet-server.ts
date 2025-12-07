@@ -23,20 +23,8 @@ console.log('🚀 Stock Quote Playback API Server (Parquet Direct)');
 console.log('📁 Decoded Data Path:', decodedDataPath);
 console.log('📁 Frontend Build Path:', frontendBuildPath);
 
-// Helper: Determine inner/outer
-function determineInnerOuter(
-  currentPrice: number,
-  prevBid1: number | null,
-  prevAsk1: number | null
-): string {
-  if (prevAsk1 !== null && currentPrice >= prevAsk1) {
-    return '外';
-  } else if (prevBid1 !== null && currentPrice <= prevBid1) {
-    return '內';
-  } else {
-    return '–';
-  }
-}
+// 注意：內外盤判斷已移至 Python 解碼階段
+// 此處直接從 Parquet 讀取 InnerOuter 欄位
 
 // Helper: Convert Parquet to JSON format
 async function convertParquetToJson(parquetPath: string): Promise<any> {
@@ -78,30 +66,15 @@ async function convertParquetToJson(parquetPath: string): Promise<any> {
     // Process trades
     const tradesJson: any[] = [];
     if (trades.length > 0) {
-      // Sort by datetime descending
-      trades.sort((a, b) => new Date(b.Datetime).getTime() - new Date(a.Datetime).getTime());
-
-      let prevBid1: number | null = null;
-      let prevAsk1: number | null = null;
+      // Sort by datetime ascending (for display)
+      trades.sort((a, b) => new Date(a.Datetime).getTime() - new Date(b.Datetime).getTime());
 
       for (const trade of trades) {
-        // Find previous depth before this trade
-        const prevDepth = depths
-          .filter((d) => new Date(d.Datetime) < new Date(trade.Datetime))
-          .sort((a, b) => new Date(b.Datetime).getTime() - new Date(a.Datetime).getTime())[0];
-
-        if (prevDepth) {
-          prevBid1 = prevDepth.Bid1_Price || null;
-          prevAsk1 = prevDepth.Ask1_Price || null;
-        }
-
-        const innerOuter = determineInnerOuter(trade.Price, prevBid1, prevAsk1);
-
         tradesJson.push({
           time: new Date(trade.Datetime).toISOString().replace('T', ' ').replace('Z', ''),
           price: trade.Price,
           volume: trade.Volume,
-          inner_outer: innerOuter,
+          inner_outer: trade.InnerOuter || '–',  // 直接讀取 Python 解碼時計算的內外盤
           flag: trade.Flag,
         });
       }

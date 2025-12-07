@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, LineStyle } from 'lightweight-charts';
 import type { StockData } from '@/types/stock';
 import { useStockStore } from '@/stores/stockStore';
 
@@ -10,9 +10,9 @@ interface Props {
 export default function LightweightStockChart({ data }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const priceSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const priceSeriesRef = useRef<any>(null);
+  const vwapSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
 
   const { currentTimeIndex, zoomMode } = useStockStore();
 
@@ -20,17 +20,28 @@ export default function LightweightStockChart({ data }: Props) {
   const chartData = useMemo(() => {
     if (!data.chart || !data.unifiedTimeline) return null;
 
+    // 過濾函數：只保留 09:00 之後的時間
+    const filterTime = (timeStr: string) => {
+      const timePart = timeStr.split(' ')[1];
+      if (!timePart) return false;
+      const hour = parseInt(timePart.split(':')[0]);
+      return hour >= 9;
+    };
+
     const tradeTimeMap = new Map(data.chart.timestamps.map((t, i) => [t, i]));
     const priceData: { time: string; value: number }[] = [];
     const vwapData: { time: string; value: number }[] = [];
     const volumeData: { time: string; value: number; color: string }[] = [];
 
-    // 準備每分鐘累積成交量（只計算 flag=0 的正式交易）
+    // 準備每分鐘累積成交量
+    // 注意：後端已經處理好 flag 的邏輯，flag=1 的成交量不會計入 total_volumes
     const minuteMap = new Map<string, number>();
     data.chart.timestamps.forEach((timestamp, index) => {
-      if ((data.chart!.flags?.[index] ?? 0) === 0) {
-        const minute = timestamp.substring(0, 16).replace(' ', 'T'); // 轉換為 ISO 格式
-        const currentVolume = data.chart!.volumes[index] || 0;
+      const minute = timestamp.substring(0, 16).replace(' ', 'T'); // 轉換為 ISO 格式
+      const currentVolume = data.chart!.volumes[index] || 0;
+      const flag = data.chart!.flags?.[index] ?? 0;
+      // 只累加 flag=0 的成交量
+      if (flag === 0) {
         minuteMap.set(minute, (minuteMap.get(minute) || 0) + currentVolume);
       }
     });
@@ -41,6 +52,12 @@ export default function LightweightStockChart({ data }: Props) {
 
     for (let i = 0; i < endIndex; i++) {
       const time = data.unifiedTimeline[i];
+
+      // 跳過 09:00 之前的時間點
+      if (!filterTime(time)) {
+        continue;
+      }
+
       const isoTime = time.substring(0, 16).replace(' ', 'T'); // 轉換為 ISO 格式
       const minute = time.substring(0, 16).replace(' ', 'T');
       const tradeIndex = tradeTimeMap.get(time);
@@ -120,7 +137,7 @@ export default function LightweightStockChart({ data }: Props) {
     chartRef.current = chart;
 
     // 價格線（黃色）
-    const priceSeries = chart.addLineSeries({
+    const priceSeries = (chart as any).addLineSeries({
       color: '#ffff00',
       lineWidth: 2,
     });
@@ -128,7 +145,7 @@ export default function LightweightStockChart({ data }: Props) {
     priceSeries.setData(chartData.priceData);
 
     // VWAP 線（青色，虛線）
-    const vwapSeries = chart.addLineSeries({
+    const vwapSeries = (chart as any).addLineSeries({
       color: '#00ffff',
       lineWidth: 2,
       lineStyle: LineStyle.Dashed,
@@ -137,7 +154,7 @@ export default function LightweightStockChart({ data }: Props) {
     vwapSeries.setData(chartData.vwapData);
 
     // 成交量柱狀圖（紫色）
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = (chart as any).addHistogramSeries({
       color: '#ff00ff',
       priceFormat: {
         type: 'volume',
@@ -154,6 +171,18 @@ export default function LightweightStockChart({ data }: Props) {
         bottom: 0,
       },
     });
+
+    // 設定時間軸範圍（只顯示有資料的範圍）
+    if (chartData.priceData.length > 0) {
+      const firstTime = chartData.priceData[0].time;
+      const lastTime = chartData.priceData[chartData.priceData.length - 1].time;
+
+      // 設定可見範圍從第一個資料點開始
+      chart.timeScale().setVisibleRange({
+        from: firstTime as any,
+        to: lastTime as any,
+      });
+    }
 
     // 響應式
     const handleResize = () => {
@@ -174,12 +203,23 @@ export default function LightweightStockChart({ data }: Props) {
 
   // 更新圖表資料（當 currentTimeIndex 改變時）
   useEffect(() => {
-    if (!chartData || !priceSeriesRef.current || !vwapSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!chartData || !priceSeriesRef.current || !vwapSeriesRef.current || !volumeSeriesRef.current || !chartRef.current) return;
 
     priceSeriesRef.current.setData(chartData.priceData);
     vwapSeriesRef.current.setData(chartData.vwapData);
     volumeSeriesRef.current.setData(chartData.volumeData);
-  }, [chartData]);
+
+    // 更新時間軸範圍
+    if (chartData.priceData.length > 0 && zoomMode === 'full') {
+      const firstTime = chartData.priceData[0].time;
+      const lastTime = chartData.priceData[chartData.priceData.length - 1].time;
+
+      chartRef.current.timeScale().setVisibleRange({
+        from: firstTime as any,
+        to: lastTime as any,
+      });
+    }
+  }, [chartData, zoomMode]);
 
   if (!data.chart) {
     return (

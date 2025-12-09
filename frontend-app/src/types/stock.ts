@@ -32,7 +32,7 @@ export interface Trade {
   time: string;
   price: number;
   volume: number;
-  inner_outer: '內盤' | '外盤' | '–';
+  inner_outer: '內盤' | '外盤' | '內' | '外' | '–';
   flag: number;
 }
 
@@ -47,6 +47,7 @@ export interface Statistics {
   trade_count: number;
   change: number;
   change_pct: number;
+  prev_close: number | null; // 前一交易日收盤價
 }
 
 // 完整股票資料型別

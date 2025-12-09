@@ -21,7 +21,7 @@ from utils import parse_trade_line, parse_depth_line, load_limit_up_list, get_ta
 from utils.config import DECODED_DIR, LIMIT_UP_FILE, DEFAULT_MAX_WORKERS, MARKETS
 
 # 自訂資料目錄
-CUSTOM_DATA_DIR = Path(r"C:\Users\tacor\Documents\tick-data")
+CUSTOM_DATA_DIR = Path(r"C:\Users\user\Documents\_08_holdwin_data\_01_web\data")
 
 
 def read_quote_file_fast(file_path: Path, target_stocks: Set[str], date_str: str) -> Dict[str, list]:

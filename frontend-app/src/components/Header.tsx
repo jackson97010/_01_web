@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useStockStore } from '@/stores/stockStore';
 import { RefreshCw } from 'lucide-react';
 
@@ -11,9 +12,70 @@ export default function Header() {
     setSelectedStock,
     stockData,
     loading,
+    currentTimeIndex,
   } = useStockStore();
 
-  const stats = stockData?.stats;
+  // 根據當前時間索引動態計算統計資料
+  const stats = useMemo(() => {
+    if (!stockData?.stats || !stockData?.chart || !stockData?.unifiedTimeline) {
+      return stockData?.stats || null;
+    }
+
+    const currentTime = stockData.unifiedTimeline[currentTimeIndex];
+    if (!currentTime) {
+      return stockData.stats;
+    }
+
+    // 找到當前時間之前的所有交易資料
+    const timestamps = stockData.chart.timestamps;
+    const prices = stockData.chart.prices;
+    const volumes = stockData.chart.volumes;
+    const flags = stockData.chart.flags || [];
+
+    // 過濾出當前時間之前的正式交易（flag=0）
+    const validIndices: number[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (timestamps[i] <= currentTime && (flags[i] === 0 || flags[i] === undefined)) {
+        validIndices.push(i);
+      }
+    }
+
+    if (validIndices.length === 0) {
+      return stockData.stats;
+    }
+
+    // 計算動態統計
+    const validPrices = validIndices.map(i => prices[i]);
+    const validVolumes = validIndices.map(i => volumes[i]);
+
+    const open_price = validPrices[0];
+    const current_price = validPrices[validPrices.length - 1];
+    const high_price = Math.max(...validPrices);
+    const low_price = Math.min(...validPrices);
+
+    const totalAmount = validIndices.reduce((sum, i) => sum + prices[i] * volumes[i], 0);
+    const total_volume = validVolumes.reduce((sum, v) => sum + v, 0);
+    const avg_price = total_volume > 0 ? totalAmount / total_volume : 0;
+
+    // 使用前日收盤價計算漲跌（如果有的話）
+    const prev_close = stockData.stats.prev_close;
+    const basePrice = prev_close ?? open_price;
+    const change = current_price - basePrice;
+    const change_pct = basePrice > 0 ? (change / basePrice) * 100 : 0;
+
+    return {
+      ...stockData.stats,
+      current_price,
+      open_price,
+      high_price,
+      low_price,
+      avg_price,
+      total_volume,
+      trade_count: validIndices.length,
+      change,
+      change_pct,
+    };
+  }, [stockData, currentTimeIndex]);
 
   return (
     <header className="bg-black border-b border-gray-800">

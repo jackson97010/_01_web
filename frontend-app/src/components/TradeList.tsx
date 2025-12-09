@@ -83,13 +83,13 @@ export default function TradeList({ trades }: Props) {
                 </td>
                 <td className="text-center">
                   <span
-                    className={`inline-block px-2 py-0.5 rounded text-xs ${
+                    className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                       trade.flag === 1
                         ? 'bg-gray-800 text-gray-500'
-                        : trade.inner_outer === '外盤'
-                        ? 'bg-red-900/30 price-up'
-                        : trade.inner_outer === '內盤'
-                        ? 'bg-green-900/30 price-down'
+                        : trade.inner_outer === '外盤' || trade.inner_outer === '外'
+                        ? 'bg-red-900/50 text-red-400'
+                        : trade.inner_outer === '內盤' || trade.inner_outer === '內'
+                        ? 'bg-green-900/50 text-green-400'
                         : 'bg-gray-800 text-gray-400'
                     }`}
                   >

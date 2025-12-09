@@ -3,6 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
 import fs from 'fs/promises';
+import { readFileSync } from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,6 +16,51 @@ app.use(express.json());
 // Static file serving - frontend build
 const frontendBuildPath = path.join(__dirname, '../../../frontend-app/dist');
 const apiDataPath = path.join(__dirname, '../../../frontend/static/api');
+const closeJsonPath = path.join(__dirname, '../../../data/close.json');
+
+// 載入收盤價資料
+// 格式: { "YYYYMMDD": { "股票代碼": 收盤價, ... }, ... }
+let closeData: Record<string, Record<string, number>> = {};
+let tradingDates: string[] = []; // 排序後的交易日列表
+
+try {
+  const closeContent = readFileSync(closeJsonPath, 'utf-8');
+  closeData = JSON.parse(closeContent);
+  tradingDates = Object.keys(closeData).sort();
+  console.log(`📈 Loaded close prices for ${tradingDates.length} trading days`);
+} catch (error) {
+  console.warn('⚠️ Could not load close.json, change calculation will use open price');
+}
+
+/**
+ * 取得前一個交易日
+ */
+function getPrevTradingDate(date: string): string | null {
+  const idx = tradingDates.indexOf(date);
+  if (idx > 0) {
+    return tradingDates[idx - 1];
+  }
+  // 如果找不到該日期，用二分搜尋找最近的前一個交易日
+  for (let i = tradingDates.length - 1; i >= 0; i--) {
+    if (tradingDates[i] < date) {
+      return tradingDates[i];
+    }
+  }
+  return null;
+}
+
+/**
+ * 取得前一交易日收盤價
+ */
+function getPrevClose(date: string, stockCode: string): number | null {
+  const prevDate = getPrevTradingDate(date);
+  if (!prevDate) return null;
+
+  const prevData = closeData[prevDate];
+  if (!prevData) return null;
+
+  return prevData[stockCode] ?? null;
+}
 
 // Log startup info
 console.log('🚀 Stock Quote Playback API Server');
@@ -180,10 +226,20 @@ app.get('/api/data/:date/:stock', async (req: Request, res: Response) => {
         data.stats.total_volume = totalVolume;
         data.stats.trade_count = formalTrades.length;
 
-        data.stats.change = data.stats.current_price - data.stats.open_price;
-        data.stats.change_pct = data.stats.open_price > 0
-          ? (data.stats.change / data.stats.open_price) * 100
-          : 0;
+        // 使用前一交易日收盤價計算漲跌幅
+        const prevClose = getPrevClose(date, stock);
+        if (prevClose !== null && prevClose > 0) {
+          data.stats.prev_close = prevClose;
+          data.stats.change = data.stats.current_price - prevClose;
+          data.stats.change_pct = (data.stats.change / prevClose) * 100;
+        } else {
+          // 如果沒有前日收盤價，使用當日開盤價（備用方案）
+          data.stats.prev_close = null;
+          data.stats.change = data.stats.current_price - data.stats.open_price;
+          data.stats.change_pct = data.stats.open_price > 0
+            ? (data.stats.change / data.stats.open_price) * 100
+            : 0;
+        }
       }
     }
 

@@ -112,13 +112,13 @@ export default function DepthTable({ depth }: Props) {
 
         {/* 總量統計 */}
         <div className="mt-3 pt-3 border-t border-gray-800 flex justify-between text-xs">
-          <div className="bid-volume">
+          <div className="text-green-400">
             內盤總量:{' '}
             <span className="font-bold mono-num">
               {depth.bids.reduce((sum, b) => sum + b.volume, 0)}
             </span>
           </div>
-          <div className="ask-volume">
+          <div className="text-red-400">
             外盤總量:{' '}
             <span className="font-bold mono-num">
               {depth.asks.reduce((sum, a) => sum + a.volume, 0)}

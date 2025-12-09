@@ -13,6 +13,7 @@ export default function LightweightStockChart({ data }: Props) {
   const priceSeriesRef = useRef<any>(null);
   const vwapSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
+  const prevCloseLineRef = useRef<any>(null);
 
   const { currentTimeIndex, zoomMode } = useStockStore();
 
@@ -152,6 +153,19 @@ export default function LightweightStockChart({ data }: Props) {
     });
     vwapSeriesRef.current = vwapSeries;
     vwapSeries.setData(chartData.vwapData);
+
+    // 昨日收盤價參考線（白色）
+    if (data.stats?.prev_close) {
+      const prevCloseLine = priceSeries.createPriceLine({
+        price: data.stats.prev_close,
+        color: '#ffffff',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: '昨收',
+      });
+      prevCloseLineRef.current = prevCloseLine;
+    }
 
     // 成交量柱狀圖（紫色）
     const volumeSeries = (chart as any).addHistogramSeries({

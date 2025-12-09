@@ -80,7 +80,6 @@ struct TradeRecord {
     price: f64,
     volume: i64,
     flag: i64,
-    inner_outer: String,  // 從 Parquet 讀取（Python 解碼時計算）
 }
 
 #[derive(Debug, Clone)]
@@ -194,15 +193,12 @@ fn read_parquet_file(path: &Path) -> Result<(Vec<TradeRecord>, Vec<DepthRecord>,
                 let price = get_float_value(&batch, "Price", i)?;
                 let volume = get_int_value(&batch, "Volume", i)?;
                 let flag = get_int_value(&batch, "Flag", i)?;
-                let inner_outer = get_optional_string_value(&batch, "InnerOuter", i)
-                    .unwrap_or_else(|| "–".to_string());
 
                 trades.push(TradeRecord {
                     datetime,
                     price,
                     volume,
                     flag,
-                    inner_outer,
                 });
             } else if row_type == "Depth" {
                 let mut bid_prices = [None; 5];
@@ -309,6 +305,47 @@ fn get_optional_string_value(batch: &arrow::record_batch::RecordBatch, col_name:
 
 // ==================== Data Processing ====================
 
+/// 判斷內外盤
+/// - price >= ask1: 外盤（買方主動成交）
+/// - price <= bid1: 內盤（賣方主動成交）
+/// - 價格在中間: 用中間價判斷
+fn determine_inner_outer(price: f64, bid1: Option<f64>, ask1: Option<f64>) -> String {
+    match (bid1, ask1) {
+        (_, Some(ask)) if price >= ask => "外盤".to_string(),
+        (Some(bid), _) if price <= bid => "內盤".to_string(),
+        (Some(bid), Some(ask)) => {
+            let mid = (bid + ask) / 2.0;
+            if price <= mid {
+                "內盤".to_string()
+            } else {
+                "外盤".to_string()
+            }
+        }
+        _ => "–".to_string(),
+    }
+}
+
+/// 二分搜尋找到最近的五檔數據（時間 < trade_datetime，嚴格在成交之前）
+///
+/// 重要：使用嚴格小於 (<) 而非小於等於 (<=)，確保找到的是成交「之前」的五檔報價
+/// 這樣才能正確判斷該筆成交相對於當時掛單簿的內外盤歸屬
+fn find_nearest_depth(depths: &[DepthRecord], trade_datetime: i64) -> Option<&DepthRecord> {
+    if depths.is_empty() {
+        return None;
+    }
+
+    // 二分搜尋找到第一個 datetime >= trade_datetime 的位置
+    let pos = depths.partition_point(|d| d.datetime < trade_datetime);
+
+    if pos == 0 {
+        // 沒有任何五檔數據在成交時間之前
+        None
+    } else {
+        // 取前一個（最近的五檔數據，時間嚴格小於成交時間）
+        Some(&depths[pos - 1])
+    }
+}
+
 fn process_stock_file(parquet_path: &Path, output_path: &Path) -> Result<bool> {
     // Read parquet file
     let (mut trades, depths, stock_code, date_str) = read_parquet_file(parquet_path)
@@ -367,7 +404,7 @@ fn process_stock_file(parquet_path: &Path, output_path: &Path) -> Result<bool> {
     Ok(true)
 }
 
-fn process_trades(trades: &mut [TradeRecord], _depths: &[DepthRecord]) -> Result<Vec<Trade>> {
+fn process_trades(trades: &mut [TradeRecord], depths: &[DepthRecord]) -> Result<Vec<Trade>> {
     // Filter out trial trades (flag=1, before 09:00)
     // flag=0: 一般揭示（正常交易）, flag=1: 試算揭示（試撮）
     let mut filtered_trades: Vec<_> = trades.iter()
@@ -378,19 +415,29 @@ fn process_trades(trades: &mut [TradeRecord], _depths: &[DepthRecord]) -> Result
     // Sort trades by datetime ascending (oldest first) for cumulative calculation
     filtered_trades.sort_by(|a, b| a.datetime.cmp(&b.datetime));
 
+    // Sort depths by datetime for binary search
+    let mut sorted_depths = depths.to_vec();
+    sorted_depths.sort_by(|a, b| a.datetime.cmp(&b.datetime));
+
     let mut result = Vec::new();
     let mut cumulative_volume = 0i64;  // 累積總量
 
     for trade in filtered_trades.iter() {
         cumulative_volume += trade.volume;  // 累加成交量
 
-        // 直接使用從 Parquet 讀取的 InnerOuter 欄位（Python 解碼時已計算）
+        // 使用五檔數據計算內外盤
+        let inner_outer = if let Some(depth) = find_nearest_depth(&sorted_depths, trade.datetime) {
+            determine_inner_outer(trade.price, depth.bid_prices[0], depth.ask_prices[0])
+        } else {
+            "–".to_string()
+        };
+
         result.push(Trade {
             time: timestamp_to_datetime_str(trade.datetime),
             price: trade.price,
             volume: trade.volume,
             total_volume: cumulative_volume,  // 累積總量
-            inner_outer: trade.inner_outer.clone(),
+            inner_outer,
             flag: trade.flag,
         });
     }

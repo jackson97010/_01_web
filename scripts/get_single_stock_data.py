@@ -13,7 +13,11 @@
    python get_single_stock_data.py 20251031 OTC 6488 --output parquet
    20251125 8042 --output parquet
    python get_single_stock_data.py 20251125 OTC 4939 --output parquet
-   python get_single_stock_data.py 20251125 OTC 8042 --output parquet
+   python get_single_stock_data.py 20251128 TSE 2485 --output parquet
+   python get_single_stock_data.py 20251127 TSE 2634 --output parquet
+   python get_single_stock_data.py 20251128 TSE 1303 --output parquet
+   python get_single_stock_data.py 20251201 TSE 8039 --output parquet
+   python get_single_stock_data.py 20251202 TSE 8110 --output parquet
 
 3. 儲存為 JSON 檔案:
    python get_single_stock_data.py 20251031 TSE 2330 --output json

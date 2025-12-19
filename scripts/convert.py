@@ -2,6 +2,11 @@
 """
 Parquet 轉 JSON 轉換工具
 將解碼後的 Parquet 檔案轉換為前端 JSON 格式
+
+使用方式：
+1. 批次模式（轉換所有檔案）：python convert.py
+2. 單日模式（轉換特定日期）：python convert.py -d 20240101
+3. 強制重新轉換：python convert.py -d 20240101 --force
 """
 import pandas as pd
 import json
@@ -10,6 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 import time
 from typing import Dict, List, Optional, Any
 import glob
+import argparse
 
 from utils import setup_logger
 from utils.config import DECODED_DIR, OUTPUT_DIR, DEFAULT_MAX_WORKERS
@@ -205,7 +211,7 @@ def calculate_statistics(trade_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
 
 def process_stock_file(args: tuple) -> str:
     """處理單個股票檔案"""
-    parquet_file, output_base_dir = args
+    parquet_file, output_base_dir, force = args
 
     try:
         parquet_path = Path(parquet_file)
@@ -216,7 +222,7 @@ def process_stock_file(args: tuple) -> str:
         output_dir = output_base_dir / date_str
         output_file = output_dir / f"{stock_code}.json"
 
-        if output_file.exists() and output_file.stat().st_mtime > parquet_path.stat().st_mtime:
+        if not force and output_file.exists():
             return f"跳過 {date_str}/{stock_code}"
 
         # 讀取資料
@@ -250,29 +256,16 @@ def process_stock_file(args: tuple) -> str:
         return f"錯誤 {parquet_file}: {e}"
 
 
-def main():
-    """主程式"""
-    logger = setup_logger('convert')
-
-    logger.info("="*80)
-    logger.info("Parquet → JSON 轉換工具")
-    logger.info("="*80)
-
-    if not DECODED_DIR.exists():
-        logger.error(f"錯誤: 找不到解碼目錄 {DECODED_DIR}")
-        logger.info("請先執行 decode.py")
-        return
-
-    # 掃描檔案
-    parquet_files = glob.glob(str(DECODED_DIR / '*' / '*.parquet'))
-    logger.info(f"\n找到 {len(parquet_files)} 個 Parquet 檔案")
-
+def convert_files(parquet_files: List[str], output_dir: Path, force: bool, logger) -> None:
+    """轉換檔案列表"""
     if not parquet_files:
         logger.warning("無檔案需處理")
         return
 
+    logger.info(f"找到 {len(parquet_files)} 個 Parquet 檔案")
+
     # 準備參數
-    args_list = [(f, OUTPUT_DIR) for f in parquet_files]
+    args_list = [(f, output_dir, force) for f in parquet_files]
 
     # 多進程處理
     logger.info(f"使用 {DEFAULT_MAX_WORKERS} 個進程並行處理\n")
@@ -296,7 +289,7 @@ def main():
     logger.info(f"跳過: {skipped} 個")
     logger.info(f"錯誤: {errors} 個")
     logger.info(f"耗時: {elapsed:.2f} 秒")
-    logger.info(f"輸出: {OUTPUT_DIR}")
+    logger.info(f"輸出: {output_dir}")
     logger.info("="*80)
 
     # 顯示錯誤
@@ -305,6 +298,73 @@ def main():
         logger.warning("\n錯誤列表:")
         for err in error_results:
             logger.warning(f"  {err}")
+
+
+def main():
+    """主程式"""
+    parser = argparse.ArgumentParser(
+        description='Parquet 轉 JSON 轉換工具',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用範例:
+  批次模式（轉換所有檔案）:
+    python convert.py
+
+  單日模式（轉換特定日期）:
+    python convert.py -d 20240101
+    python convert.py --date 20240101
+
+  強制重新轉換（忽略快取）:
+    python convert.py -d 20240101 --force
+    python convert.py --force
+
+  自訂輸出目錄:
+    python convert.py -d 20240101 -o ./my_output
+        """
+    )
+
+    parser.add_argument('-d', '--date', help='指定日期 (YYYYMMDD)')
+    parser.add_argument('-o', '--output', help=f'輸出目錄 (預設: {OUTPUT_DIR})')
+    parser.add_argument('-f', '--force', action='store_true', help='強制重新轉換（忽略快取）')
+
+    args = parser.parse_args()
+    logger = setup_logger('convert')
+
+    logger.info("="*80)
+    logger.info("Parquet → JSON 轉換工具")
+    logger.info("="*80)
+
+    if not DECODED_DIR.exists():
+        logger.error(f"錯誤: 找不到解碼目錄 {DECODED_DIR}")
+        logger.info("請先執行 decode.py")
+        return
+
+    output_dir = Path(args.output) if args.output else OUTPUT_DIR
+
+    # 單日模式
+    if args.date:
+        logger.info(f"\n單日模式 - 轉換日期: {args.date}")
+        date_dir = DECODED_DIR / args.date
+
+        if not date_dir.exists():
+            logger.error(f"錯誤: 找不到日期目錄 {date_dir}")
+            logger.info("請先執行 decode.py 解碼該日期的資料")
+            return
+
+        parquet_files = glob.glob(str(date_dir / '*.parquet'))
+        logger.info(f"輸入目錄: {date_dir}")
+        logger.info(f"輸出目錄: {output_dir}")
+
+        convert_files(parquet_files, output_dir, args.force, logger)
+        return
+
+    # 批次模式
+    logger.info("\n批次模式 - 轉換所有檔案")
+    parquet_files = glob.glob(str(DECODED_DIR / '*' / '*.parquet'))
+    logger.info(f"輸入目錄: {DECODED_DIR}")
+    logger.info(f"輸出目錄: {output_dir}")
+
+    convert_files(parquet_files, output_dir, args.force, logger)
 
 
 if __name__ == "__main__":

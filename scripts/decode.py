@@ -282,6 +282,52 @@ def batch_mode(logger):
     logger.info("="*80)
 
 
+def process_single_date(date_str: str, markets: List[str], output_base_dir: Path, logger) -> int:
+    """
+    處理單一日期的所有漲停股票
+
+    Args:
+        date_str: 日期字串 (YYYYMMDD)
+        markets: 市場列表 ['TSE', 'OTC']
+        output_base_dir: 輸出基礎目錄
+        logger: 日誌記錄器
+
+    Returns:
+        保存的股票數量
+    """
+    logger.info(f"{'='*60}\n處理日期: {date_str}\n{'='*60}")
+
+    # 載入漲停清單
+    if not LIMIT_UP_FILE.exists():
+        logger.error(f"找不到漲停清單: {LIMIT_UP_FILE}")
+        return 0
+
+    limit_up_dict = load_limit_up_list(LIMIT_UP_FILE)
+    target_stocks = get_target_stocks(limit_up_dict, date_str)
+
+    if not target_stocks:
+        logger.warning(f"日期 {date_str} 沒有漲停股票記錄")
+        return 0
+
+    logger.info(f"目標股票: {len(target_stocks)} 支")
+
+    # 準備輸出目錄
+    output_dir = output_base_dir / date_str
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    total_saved = 0
+    for market in markets:
+        quote_file = CUSTOM_DATA_DIR / f"{market}Quote.{date_str}"
+        if quote_file.exists():
+            logger.info(f"\n處理市場: {market}")
+            total_saved += process_quote_file(quote_file, target_stocks, date_str, output_dir, logger)
+        else:
+            logger.warning(f"未找到 {market}Quote.{date_str}")
+
+    logger.info(f"\n完成，共保存 {total_saved} 支股票")
+    return total_saved
+
+
 def main():
     """主程式"""
     parser = argparse.ArgumentParser(
@@ -289,10 +335,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用範例:
-  批次模式（使用漲停清單）:
+  批次模式（使用漲停清單處理所有日期）:
     python decode.py
 
-  指定模式:
+  單日模式（處理特定日期的漲停股票）:
+    python decode.py --date 20240101
+    python decode.py -d 20240101 -m TSE
+
+  指定模式（處理特定日期的特定股票）:
     python decode.py --date 20240101 --stocks 2330,2317 --market TSE
     python decode.py -d 20240101 -s 2330,2317,2454 -m BOTH
 
@@ -317,7 +367,7 @@ def main():
         interactive_mode(logger)
         return
 
-    # 指定模式
+    # 指定模式：日期 + 股票
     if args.date and args.stocks:
         logger.info("="*80)
         logger.info("指定模式 - 解碼特定股票")
@@ -333,6 +383,21 @@ def main():
         process_specific_stocks(args.date, stock_codes, markets, CUSTOM_DATA_DIR, output_dir, logger)
         return
 
+    # 單日模式：只指定日期，處理該日漲停股票
+    if args.date and not args.stocks:
+        logger.info("="*80)
+        logger.info("單日模式 - 解碼特定日期的漲停股票")
+        logger.info("="*80)
+
+        markets = ['TSE', 'OTC'] if args.market == 'BOTH' else [args.market]
+        output_dir = Path(args.output) if args.output else DECODED_DIR
+
+        logger.info(f"\n資料來源: {CUSTOM_DATA_DIR}")
+        logger.info(f"輸出目錄: {output_dir}")
+
+        process_single_date(args.date, markets, output_dir, logger)
+        return
+
     # 批次模式
     if not args.date and not args.stocks:
         batch_mode(logger)
@@ -340,7 +405,7 @@ def main():
 
     # 參數不完整
     logger.error("參數錯誤！使用 --help 查看使用說明")
-    logger.error("需要同時指定 --date 和 --stocks，或使用 --interactive 進入互動模式")
+    logger.error("請使用 --date 指定日期，或使用 --interactive 進入互動模式")
 
 
 if __name__ == "__main__":

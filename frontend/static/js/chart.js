@@ -1307,19 +1307,50 @@ function togglePlayback() {
     }
 }
 
-// 開始播放
+// 開始播放（以真實時間驅動）
 function startPlayback() {
     const speedSelect = document.getElementById('playbackSpeed');
     const speed = parseFloat(speedSelect.value);
-    const interval = 1000 / speed; // 基礎速度為1秒1筆
+
+    // 記錄播放開始的現實時間和盤中時間
+    const playbackStartRealTime = Date.now();
+    const playbackStartMarketTime = new Date(allTimeline[currentTimelineIndex]).getTime();
+
+    // 使用較高頻率的更新（每 50ms 檢查一次）
+    const updateInterval = 50;
 
     playbackInterval = setInterval(() => {
-        // 時間軸是正序（09:00 -> 13:30），播放時 index 遞增
-        currentTimelineIndex++;
+        // 計算已經過的現實時間（毫秒）
+        const elapsedRealTime = Date.now() - playbackStartRealTime;
 
-        if (currentTimelineIndex >= allTimeline.length) {
+        // 根據速度計算應該推進的盤中時間（毫秒）
+        const elapsedMarketTime = elapsedRealTime * speed;
+
+        // 計算目標盤中時間
+        const targetMarketTime = playbackStartMarketTime + elapsedMarketTime;
+
+        // 找到對應的時間軸索引（找到第一個時間 >= targetMarketTime 的索引）
+        let newIndex = currentTimelineIndex;
+        for (let i = currentTimelineIndex; i < allTimeline.length; i++) {
+            const indexTime = new Date(allTimeline[i]).getTime();
+            if (indexTime <= targetMarketTime) {
+                newIndex = i;
+            } else {
+                break;
+            }
+        }
+
+        // 如果索引沒有變化，不更新顯示（避免不必要的渲染）
+        if (newIndex === currentTimelineIndex) {
+            return;
+        }
+
+        currentTimelineIndex = newIndex;
+
+        if (currentTimelineIndex >= allTimeline.length - 1) {
             // 播放完畢（到達 13:30），停止
             currentTimelineIndex = allTimeline.length - 1;
+            updateByTimelineIndex(currentTimelineIndex);
             togglePlayback();
             return;
         }
@@ -1331,7 +1362,7 @@ function startPlayback() {
 
         // 更新顯示
         updateByTimelineIndex(currentTimelineIndex);
-    }, interval);
+    }, updateInterval);
 }
 
 // 停止播放

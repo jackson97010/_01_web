@@ -1,11 +1,22 @@
 """
 將解碼的 Parquet 檔案轉換為前端所需的 JSON 格式
 修正版：支援 pandas Timestamp 對象和 Unix timestamp（毫秒）兩種格式
+
+使用範例:
+1. 轉換所有日期:
+   python convert_to_json.py
+
+2. 指定單一日期:
+   python convert_to_json.py --date 20251219
+
+3. 指定日期範圍:
+   python convert_to_json.py --start 20251201 --end 20251219
 """
 import pandas as pd
 import numpy as np
 import os
 import json
+import argparse
 from pathlib import Path
 from datetime import datetime
 import glob
@@ -275,6 +286,13 @@ def process_stock_file(parquet_path, output_path):
 
 def main():
     """主程式"""
+    # 解析命令列參數
+    parser = argparse.ArgumentParser(description="將 Parquet 檔案轉換為前端 JSON 格式")
+    parser.add_argument("--date", type=str, help="指定單一日期 (格式: YYYYMMDD)")
+    parser.add_argument("--start", type=str, help="起始日期 (格式: YYYYMMDD)")
+    parser.add_argument("--end", type=str, help="結束日期 (格式: YYYYMMDD)")
+    args = parser.parse_args()
+
     print("=" * 80)
     print("Parquet 轉 JSON 轉換程式（修正版）")
     print("=" * 80)
@@ -296,6 +314,24 @@ def main():
                  if os.path.isdir(os.path.join(decoded_dir, d)) and d.isdigit()]
 
     date_dirs.sort()
+
+    # 根據參數過濾日期
+    if args.date:
+        # 指定單一日期
+        if args.date in date_dirs:
+            date_dirs = [args.date]
+        else:
+            print(f"錯誤: 找不到日期 {args.date} 的資料")
+            print(f"可用日期: {', '.join(date_dirs[:5])}..." if len(date_dirs) > 5 else f"可用日期: {', '.join(date_dirs)}")
+            return
+    elif args.start or args.end:
+        # 日期範圍
+        start_date = args.start or date_dirs[0]
+        end_date = args.end or date_dirs[-1]
+        date_dirs = [d for d in date_dirs if start_date <= d <= end_date]
+        if not date_dirs:
+            print(f"錯誤: 在 {start_date} ~ {end_date} 範圍內找不到資料")
+            return
 
     print(f"\n找到 {len(date_dirs)} 個日期: {date_dirs[0]} ~ {date_dirs[-1]}" if date_dirs else "沒有找到日期資料")
 

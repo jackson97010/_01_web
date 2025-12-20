@@ -8,10 +8,25 @@ Parquet 轉 JSON 資料轉換程式（優化版）
 - 多進程並行處理
 - 自動跳過已轉換檔案
 - 完整的資料處理（VWAP、內外盤判斷、統計資料）
+
+使用範例:
+1. 轉換所有日期:
+   python data_convert.py
+
+2. 指定單一日期:
+   python data_convert.py --date 20251219
+
+3. 指定日期範圍:
+   python data_convert.py --start 20251201 --end 20251219
+
+4. 強制重新轉換（忽略已存在的檔案）:
+   python data_convert.py --date 20251219 --force
 """
 import pandas as pd
 import os
 import json
+import argparse
+import glob
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 import time
@@ -47,38 +62,62 @@ def calculate_vwap(prices: List[float], volumes: List[int]) -> List[float]:
     return vwap
 
 
-def determine_inner_outer(trade_price: float, prev_bid1: Optional[float], prev_ask1: Optional[float]) -> str:
+def determine_tick_type(trade_price: float, best_bid: Optional[float], best_ask: Optional[float]) -> int:
     """
-    判斷內外盤
+    使用 Double Buffer 方法判斷內外盤（tick_type）
 
     Args:
         trade_price: 成交價
-        prev_bid1: 前一檔買1價
-        prev_ask1: 前一檔賣1價
+        best_bid: 最佳買價
+        best_ask: 最佳賣價
 
     Returns:
-        '外'（外盤）、'內'（內盤）或 '–'（平盤）
+        1: 外盤（買）- price >= best_ask
+        2: 內盤（賣）- price <= best_bid
+        0: 未判定
     """
-    if prev_ask1 is not None and trade_price >= prev_ask1:
-        return '外'
-    elif prev_bid1 is not None and trade_price <= prev_bid1:
-        return '內'
-    elif prev_bid1 is not None and prev_ask1 is not None:
-        mid_price = (prev_bid1 + prev_ask1) / 2
-        return '內' if trade_price <= mid_price else '外'
+    if trade_price is None or trade_price <= 0:
+        return 0
+    if best_ask is not None and trade_price >= best_ask:
+        return 1  # 外盤
+    if best_bid is not None and trade_price <= best_bid:
+        return 2  # 內盤
+    return 0  # 未判定（價格在 bid/ask 之間）
+
+
+def tick_type_to_label(tick_type: int) -> str:
+    """將 tick_type 轉換為中文標籤"""
+    if tick_type == 1:
+        return '外盤'
+    elif tick_type == 2:
+        return '內盤'
     return '–'
 
 
+def filter_trading_hours(df: pd.DataFrame) -> pd.DataFrame:
+    """過濾出 09:00 以後的交易資料（排除試撮時段）"""
+    if df.empty:
+        return df
+    # 取得時間的 hour，只保留 9 點以後的資料
+    return df[df['Datetime'].dt.hour >= 9].copy()
+
+
 def prepare_chart_data(trade_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """準備圖表資料"""
+    """準備圖表資料（只計算 09:00 以後的資料）"""
     if trade_df.empty:
         return None
 
+    # 過濾 09:00 以後的資料用於 VWAP 計算
     trade_df = trade_df.sort_values('Datetime').reset_index(drop=True)
+    trade_df_filtered = filter_trading_hours(trade_df)
 
     timestamps = [str(ts) for ts in trade_df['Datetime']]
     prices = [float(p) if pd.notna(p) else 0.0 for p in trade_df['Price']]
     volumes = [int(v) if pd.notna(v) else 0 for v in trade_df['Volume']]
+
+    # 計算累計成交量（使用過濾後的資料）
+    filtered_prices = [float(p) if pd.notna(p) else 0.0 for p in trade_df_filtered['Price']] if not trade_df_filtered.empty else []
+    filtered_volumes = [int(v) if pd.notna(v) else 0 for v in trade_df_filtered['Volume']] if not trade_df_filtered.empty else []
 
     # 計算累計成交量
     total_volumes = []
@@ -87,8 +126,19 @@ def prepare_chart_data(trade_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         cumsum += v
         total_volumes.append(cumsum)
 
-    # 計算 VWAP
-    vwap = calculate_vwap(prices, volumes)
+    # 計算 VWAP（只用 09:00 以後的資料）
+    vwap_filtered = calculate_vwap(filtered_prices, filtered_volumes) if filtered_prices else []
+
+    # 將 VWAP 對應回所有時間點（09:00 前的用 0 或第一個有效值）
+    vwap = []
+    vwap_idx = 0
+    for ts in trade_df['Datetime']:
+        if ts.hour >= 9 and vwap_idx < len(vwap_filtered):
+            vwap.append(vwap_filtered[vwap_idx])
+            vwap_idx += 1
+        else:
+            # 09:00 前用 0 或用第一個有效 VWAP
+            vwap.append(vwap_filtered[0] if vwap_filtered else 0.0)
 
     return {
         'timestamps': timestamps,
@@ -137,91 +187,154 @@ def prepare_depth_data(depth_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
 
 
 def prepare_depth_history(depth_df: pd.DataFrame) -> List[Dict[str, Any]]:
-    """準備五檔歷史資料"""
+    """準備五檔歷史資料 - 優化版"""
     if depth_df.empty:
         return []
 
     depth_df = depth_df.sort_values('Datetime').reset_index(drop=True)
 
-    history = []
-    for _, row in depth_df.iterrows():
-        entry = {
-            'timestamp': str(row['Datetime']),
-            'bids': [],
-            'asks': []
-        }
+    # 預先取出所有欄位的值（避免重複 .get()）
+    timestamps = depth_df['Datetime'].astype(str).tolist()
 
-        for i in range(1, 6):
+    # 預先取出所有五檔價量
+    bid_prices = [depth_df.get(f'Bid{i}_Price') for i in range(1, 6)]
+    bid_volumes = [depth_df.get(f'Bid{i}_Volume') for i in range(1, 6)]
+    ask_prices = [depth_df.get(f'Ask{i}_Price') for i in range(1, 6)]
+    ask_volumes = [depth_df.get(f'Ask{i}_Volume') for i in range(1, 6)]
+
+    history = []
+    for idx in range(len(depth_df)):
+        bids = []
+        asks = []
+
+        for i in range(5):
             # 買盤
-            bid_price = row.get(f'Bid{i}_Price')
-            bid_volume = row.get(f'Bid{i}_Volume')
-            if pd.notna(bid_price) and pd.notna(bid_volume):
-                entry['bids'].append({
-                    'price': float(bid_price),
-                    'volume': int(bid_volume)
-                })
+            if bid_prices[i] is not None:
+                bp = bid_prices[i].iloc[idx]
+                bv = bid_volumes[i].iloc[idx] if bid_volumes[i] is not None else None
+                if pd.notna(bp) and pd.notna(bv):
+                    bids.append({'price': float(bp), 'volume': int(bv)})
 
             # 賣盤
-            ask_price = row.get(f'Ask{i}_Price')
-            ask_volume = row.get(f'Ask{i}_Volume')
-            if pd.notna(ask_price) and pd.notna(ask_volume):
-                entry['asks'].append({
-                    'price': float(ask_price),
-                    'volume': int(ask_volume)
-                })
+            if ask_prices[i] is not None:
+                ap = ask_prices[i].iloc[idx]
+                av = ask_volumes[i].iloc[idx] if ask_volumes[i] is not None else None
+                if pd.notna(ap) and pd.notna(av):
+                    asks.append({'price': float(ap), 'volume': int(av)})
 
-        history.append(entry)
+        history.append({
+            'timestamp': timestamps[idx],
+            'bids': bids,
+            'asks': asks
+        })
 
     return history
 
 
+def prepare_trade_details_double_buffer(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """
+    準備成交明細（含內外盤判斷）- 使用 Double Buffer 方法
+
+    Double Buffer 邏輯：
+    - latest_depth: 最新的 depth
+    - second_latest_depth: 第二新的 depth
+    - Trade 判定時，如果 Trade 和 latest_depth 同 timestamp，用 second_latest_depth
+    - 否則用 latest_depth
+    """
+    if df.empty:
+        return []
+
+    # 按時間排序（正序處理）
+    df_sorted = df.sort_values('Datetime').reset_index(drop=True)
+
+    # Double Buffer 狀態
+    latest_depth = None  # {'bid': float, 'ask': float, 'timestamp': Timestamp}
+    second_latest_depth = None
+
+    # 儲存每筆 Trade 的結果
+    trade_results = []
+
+    for _, row in df_sorted.iterrows():
+        row_type = row.get('Type', '')
+        timestamp = row['Datetime']
+
+        if row_type == 'Depth':
+            # 更新 depth state: second_latest = latest, latest = new
+            bid1 = row.get('Bid1_Price')
+            ask1 = row.get('Ask1_Price')
+
+            if pd.notna(bid1) and pd.notna(ask1) and bid1 > 0 and ask1 > 0:
+                second_latest_depth = latest_depth
+                latest_depth = {
+                    'bid': float(bid1),
+                    'ask': float(ask1),
+                    'timestamp': timestamp
+                }
+
+        elif row_type == 'Trade':
+            price = row.get('Price', 0)
+            volume = row.get('Volume', 0)
+            flag = row.get('Flag', 0)
+
+            # 使用 Double Buffer 邏輯取得 depth
+            depth_to_use = None
+            if latest_depth is not None:
+                # 如果 Trade 和 latest_depth 同 timestamp，用 second_latest_depth
+                if latest_depth['timestamp'] == timestamp:
+                    depth_to_use = second_latest_depth if second_latest_depth else latest_depth
+                else:
+                    depth_to_use = latest_depth
+
+            # 計算 tick_type
+            if depth_to_use and pd.notna(price) and price > 0 and pd.notna(volume) and volume > 0:
+                tick_type = determine_tick_type(
+                    float(price),
+                    depth_to_use['bid'],
+                    depth_to_use['ask']
+                )
+            else:
+                tick_type = 0
+
+            trade_results.append({
+                'time': str(timestamp) if pd.notna(timestamp) else '',
+                'price': float(price) if pd.notna(price) else 0.0,
+                'volume': int(volume) if pd.notna(volume) else 0,
+                'inner_outer': tick_type_to_label(tick_type),
+                'tick_type': tick_type,
+                'flag': int(flag) if pd.notna(flag) else 0
+            })
+
+    # 按時間倒序排列（最新的在前）
+    trade_results.reverse()
+
+    return trade_results
+
+
 def prepare_trade_details(trade_df: pd.DataFrame, depth_df: pd.DataFrame) -> List[Dict[str, Any]]:
-    """準備成交明細（含內外盤判斷）"""
+    """準備成交明細 - 包裝函數，合併 Trade 和 Depth 後使用 Double Buffer"""
     if trade_df.empty:
         return []
 
-    trade_df = trade_df.sort_values('Datetime', ascending=False).reset_index(drop=True)
-
-    if not depth_df.empty:
-        depth_df = depth_df.sort_values('Datetime')
-    else:
-        depth_df = pd.DataFrame()
-
-    details = []
-    for _, row in trade_df.iterrows():
-        trade_time = row['Datetime']
-        trade_price = float(row['Price']) if pd.notna(row['Price']) else 0.0
-
-        # 判斷內外盤
-        inner_outer = '–'
-        if not depth_df.empty and trade_price > 0:
-            prior_depths = depth_df[depth_df['Datetime'] <= trade_time]
-            if not prior_depths.empty:
-                closest_depth = prior_depths.iloc[-1]
-                bid1_price = closest_depth.get('Bid1_Price')
-                ask1_price = closest_depth.get('Ask1_Price')
-                inner_outer = determine_inner_outer(trade_price, bid1_price, ask1_price)
-
-        details.append({
-            'time': str(trade_time) if pd.notna(trade_time) else '',
-            'price': trade_price,
-            'volume': int(row['Volume']) if pd.notna(row['Volume']) else 0,
-            'inner_outer': inner_outer,
-            'flag': int(row['Flag']) if pd.notna(row['Flag']) else 0
-        })
-
-    return details
+    # 合併 Trade 和 Depth，按時間排序
+    combined = pd.concat([trade_df, depth_df], ignore_index=True)
+    return prepare_trade_details_double_buffer(combined)
 
 
 def calculate_statistics(trade_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """計算統計資料"""
+    """計算統計資料（只計算 09:00 以後的資料）"""
     if trade_df.empty:
         return None
 
     trade_df = trade_df.sort_values('Datetime').reset_index(drop=True)
 
-    valid_prices = trade_df['Price'].dropna()
-    valid_volumes = trade_df['Volume'].dropna()
+    # 過濾 09:00 以後的資料
+    trade_df_filtered = filter_trading_hours(trade_df)
+
+    if trade_df_filtered.empty:
+        return None
+
+    valid_prices = trade_df_filtered['Price'].dropna()
+    valid_volumes = trade_df_filtered['Volume'].dropna()
 
     if valid_prices.empty:
         return None
@@ -232,7 +345,7 @@ def calculate_statistics(trade_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     low_price = float(valid_prices.min())
 
     # 計算平均成交價（成交量加權）
-    valid_df = trade_df[trade_df['Price'].notna() & trade_df['Volume'].notna()]
+    valid_df = trade_df_filtered[trade_df_filtered['Price'].notna() & trade_df_filtered['Volume'].notna()]
     if not valid_df.empty:
         total_amount = (valid_df['Price'] * valid_df['Volume']).sum()
         total_volume = valid_df['Volume'].sum()
@@ -261,12 +374,12 @@ def process_stock_file(args: tuple) -> str:
     處理單個股票的 Parquet 檔案並轉換為 JSON
 
     Args:
-        args: (parquet_file_path, output_base_dir)
+        args: (parquet_file_path, output_base_dir, force)
 
     Returns:
         處理結果訊息
     """
-    parquet_file, output_base_dir = args
+    parquet_file, output_base_dir, force = args
 
     try:
         # 解析路徑
@@ -278,7 +391,7 @@ def process_stock_file(args: tuple) -> str:
         output_dir = output_base_dir / date_str
         output_file = output_dir / f"{stock_code}.json"
 
-        if output_file.exists():
+        if not force and output_file.exists():
             # 比較修改時間
             if output_file.stat().st_mtime > parquet_path.stat().st_mtime:
                 return f"跳過 {date_str}/{stock_code} (已存在)"
@@ -324,6 +437,14 @@ def process_stock_file(args: tuple) -> str:
 
 def main():
     """主程式"""
+    # 解析命令列參數
+    parser = argparse.ArgumentParser(description="將 Parquet 檔案轉換為前端 JSON 格式")
+    parser.add_argument("--date", type=str, help="指定單一日期 (格式: YYYYMMDD)")
+    parser.add_argument("--start", type=str, help="起始日期 (格式: YYYYMMDD)")
+    parser.add_argument("--end", type=str, help="結束日期 (格式: YYYYMMDD)")
+    parser.add_argument("--force", action="store_true", help="強制重新轉換（忽略已存在的檔案）")
+    args = parser.parse_args()
+
     logger = setup_logger('data_convert')
 
     logger.info("=" * 80)
@@ -335,19 +456,47 @@ def main():
         logger.info("請先執行 batch_decode.py")
         return
 
-    # 掃描所有 Parquet 檔案
-    parquet_pattern = str(DECODED_DIR / '*' / '*.parquet')
-    import glob
-    parquet_files = glob.glob(parquet_pattern)
+    # 取得所有日期目錄
+    date_dirs = sorted([d.name for d in DECODED_DIR.iterdir() if d.is_dir() and d.name.isdigit()])
 
-    logger.info(f"\n找到 {len(parquet_files)} 個 Parquet 檔案")
+    if not date_dirs:
+        logger.warning("沒有找到任何日期目錄")
+        return
+
+    # 根據參數過濾日期
+    if args.date:
+        if args.date in date_dirs:
+            date_dirs = [args.date]
+        else:
+            logger.error(f"錯誤: 找不到日期 {args.date} 的資料")
+            logger.info(f"可用日期: {', '.join(date_dirs[:5])}..." if len(date_dirs) > 5 else f"可用日期: {', '.join(date_dirs)}")
+            return
+    elif args.start or args.end:
+        start_date = args.start or date_dirs[0]
+        end_date = args.end or date_dirs[-1]
+        date_dirs = [d for d in date_dirs if start_date <= d <= end_date]
+        if not date_dirs:
+            logger.error(f"錯誤: 在 {start_date} ~ {end_date} 範圍內找不到資料")
+            return
+
+    logger.info(f"處理日期: {date_dirs[0]} ~ {date_dirs[-1]} (共 {len(date_dirs)} 天)")
+    if args.force:
+        logger.info("模式: 強制重新轉換")
+
+    # 掃描指定日期的 Parquet 檔案
+    parquet_files = []
+    for date_str in date_dirs:
+        pattern = str(DECODED_DIR / date_str / '*.parquet')
+        parquet_files.extend(glob.glob(pattern))
+
+    logger.info(f"找到 {len(parquet_files)} 個 Parquet 檔案")
 
     if not parquet_files:
         logger.warning("沒有找到任何 Parquet 檔案")
         return
 
     # 準備參數
-    args_list = [(f, OUTPUT_DIR) for f in parquet_files]
+    args_list = [(f, OUTPUT_DIR, args.force) for f in parquet_files]
 
     # 使用多進程處理
     max_workers = DEFAULT_MAX_WORKERS

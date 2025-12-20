@@ -1,0 +1,40 @@
+# --- Rust ---
+/app/native/target/
+target/
+**/*.rs.bk
+# 忽略編譯出的二進制檔
+*.dll
+*.lib
+*.pdb
+*.exp
+*.exe
+*.node
+
+# --- Node.js ---
+node_modules/
+dist/
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Large Data Files (忽略根目錄下的大型 JSON/Parquet 數據) ---
+*.parquet
+# 忽略根目錄下類似 5309_1219.json 這種大型數據檔
+/[0-9]*_*.json
+
+# 但保留 app 內的測試用小型數據 (如果需要的話)
+!/app/[0-9]*_*.json

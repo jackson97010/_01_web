@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /B /S \"C:\\Users\\User\\Documents\\HFT\\_replay_system\\app\")",
+      "Bash(findstr:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(del setup-rust.bat)",
+      "Bash(python check_data.py:*)",
+      "Bash(python check_tick.py:*)",
+      "Bash(python:*)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /PID 159676 /F\")",
+      "Bash(node test_depth.js:*)",
+      "Bash(npm run electron:*)",
+      "Bash(npm run:*)",
+      "Bash(npm start)",
+      "Bash(dir:*)",
+      "Bash(cmd /c \"dir C:\\Users\\User\\Documents\\HFT\\_replay_system\\3060_1219.json | findstr 3060\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

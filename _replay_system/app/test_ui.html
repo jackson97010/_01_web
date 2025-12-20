@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>測試五檔顯示</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 20px;
+    }
+    .depth-info {
+      background: #222;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid #333;
+    }
+    .bid { color: #00c853; }
+    .ask { color: #ff4d4f; }
+  </style>
+</head>
+<body>
+  <h2>測試五檔資料處理和顯示</h2>
+  <button onclick="testData()">載入並測試資料</button>
+  <div id="output"></div>
+
+  <script type="module">
+    import { prepareReplay, getStateAtIndex } from './src/utils/replay.js';
+
+    window.testData = async function() {
+      const output = document.getElementById('output');
+      output.innerHTML = '載入中...';
+
+      try {
+        // 載入資料
+        const response = await fetch('../3060_1219.json');
+        let text = await response.text();
+
+        // 處理 NaN 值
+        text = text.replace(/:\s*NaN\s*([,\}])/g, ': null$1');
+        text = text.replace(/:\s*Infinity\s*([,\}])/g, ': null$1');
+        text = text.replace(/:\s*-Infinity\s*([,\}])/g, ': null$1');
+
+        const data = JSON.parse(text);
+        console.log('原始資料筆數:', data.length);
+
+        // 使用 prepareReplay 處理
+        const processed = prepareReplay(data);
+        console.log('處理後資料筆數:', processed.length);
+
+        // 測試不同時間點的狀態
+        const testIndices = [0, 100, 500, 1000, 5000];
+        let html = '';
+
+        for (const idx of testIndices) {
+          const state = getStateAtIndex(processed, idx);
+          const row = processed[idx];
+
+          html += `<div class="depth-info">`;
+          html += `<h3>索引 ${idx} - ${row?.Datetime || '無資料'}</h3>`;
+
+          if (state.lastDepth) {
+            html += `<div class="row">
+              <span>類型: ${row?.Type}</span>
+              <span>BS_Flag: ${row?.BS_Flag}</span>
+            </div>`;
+            html += `<div class="row">
+              <span class="bid">買一: ${state.lastDepth.Bid1_Price} @ ${state.lastDepth.Bid1_Volume}</span>
+              <span class="ask">賣一: ${state.lastDepth.Ask1_Price} @ ${state.lastDepth.Ask1_Volume}</span>
+            </div>`;
+
+            if (state.lastTrade) {
+              html += `<div class="row">
+                <span>最後成交: ${state.lastTrade.Price} @ ${state.lastTrade.Volume}</span>
+                <span>內外盤: ${state.lastTrade.BS_Flag}</span>
+              </div>`;
+            }
+          } else {
+            html += '<div>無五檔資料</div>';
+          }
+          html += '</div>';
+        }
+
+        output.innerHTML = html;
+
+      } catch (error) {
+        output.innerHTML = `<div style="color: red;">錯誤: ${error.message}</div>`;
+        console.error(error);
+      }
+    };
+  </script>
+</body>
+</html>

@@ -17,7 +17,12 @@ function createWindow() {
     title: '台股極速回放系統 Pro Max'
   });
 
-  mainWindow.loadFile('index.html');
+  // 根據環境載入不同的檔案
+  if (process.env.NODE_ENV === 'production') {
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    mainWindow.loadFile('index.html');
+  }
 
   // 開發模式下開啟 DevTools
   if (process.argv.includes('--dev')) {

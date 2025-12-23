@@ -8,6 +8,10 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 載入 Redis 服務
+import MarketDataProcessor from './redisService.js';
+let marketDataProcessor = null;
+
 // 載入 Rust 模塊（暫時禁用以診斷問題）
 let nativeModule = null;
 const USE_RUST = false; // 設為 false 暫時禁用 Rust，設為 true 啟用
@@ -141,6 +145,69 @@ app.whenReady().then(() => {
     return loadFile(filePath);
   });
 
+  // Redis 即時資料流相關 IPC 處理
+  ipcMain.handle('live:start', async (_evt, stockId) => {
+    try {
+      if (!marketDataProcessor) {
+        marketDataProcessor = new MarketDataProcessor();
+      }
+
+      // 連接 Redis 並設定資料回調，傳入股票代碼
+      const connected = await marketDataProcessor.connect((data) => {
+        // 將即時資料推送給前端
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('market-data-update', data);
+        }
+      }, stockId);
+
+      return {
+        success: connected,
+        message: connected ? `Connected to live stream${stockId ? ` for stock ${stockId}` : ''}` : 'Failed to connect',
+        stockId: stockId
+      };
+    } catch (error) {
+      console.error('Error starting live stream:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  });
+
+  ipcMain.handle('live:stop', async () => {
+    try {
+      if (marketDataProcessor) {
+        await marketDataProcessor.disconnect();
+        marketDataProcessor = null;
+      }
+      return {
+        success: true,
+        message: 'Live stream stopped'
+      };
+    } catch (error) {
+      console.error('Error stopping live stream:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  });
+
+  ipcMain.handle('live:status', async () => {
+    if (!marketDataProcessor) {
+      return {
+        connected: false,
+        message: 'Not initialized'
+      };
+    }
+    return marketDataProcessor.getStatus();
+  });
+
+  // 取得可用的股票列表
+  ipcMain.handle('live:getStocks', async () => {
+    return MarketDataProcessor.getAvailableStocks();
+  });
+
   createWindow();
 
   app.on('activate', () => {
@@ -150,7 +217,13 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  // 清理 Redis 連線
+  if (marketDataProcessor) {
+    await marketDataProcessor.disconnect();
+    marketDataProcessor = null;
+  }
+
   if (process.platform !== 'darwin') {
     app.quit();
   }

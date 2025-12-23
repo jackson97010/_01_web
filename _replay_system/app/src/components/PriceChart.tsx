@@ -225,15 +225,7 @@ const PriceChart: React.FC<PriceChartProps> = memo(({ trades, currentTimestamp }
       lazyUpdate: true  // 延遲更新
     });
 
-    // 響應式調整
-    const handleResize = () => {
-      chart.resize();
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
+    // 響應式調整已在上面的 useEffect 處理了，這裡不需要重複定義
   }, [chartData]);
 
   // 清理

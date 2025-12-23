@@ -59,7 +59,8 @@ body {
 }
 
 input,
-button {
+button,
+select {
   border-radius: 6px;
   border: 1px solid var(--border);
   background: #111;
@@ -69,7 +70,8 @@ button {
 }
 
 input:focus,
-button:focus {
+button:focus,
+select:focus {
   outline: 1px solid var(--up);
 }
 
@@ -94,6 +96,28 @@ button:active {
 
 .secondary {
   background: #222;
+}
+
+.success {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+
+.success:hover {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .status {

@@ -1,8 +1,16 @@
 import { ReplayRow, StateAtIndex, DepthRow, TradeRow } from '../types';
 
 export function prepareReplay(rows: any[]): ReplayRow[] {
+  console.log('prepareReplay called with rows:', rows.length);
+
   // 過濾掉無效數據
   const validRows = rows.filter(r => r && r.Type && r.Timestamp && r.Datetime);
+  console.log('Valid rows after filter:', validRows.length);
+
+  // Check data types
+  const depthCount = validRows.filter(r => r.Type === 'Depth').length;
+  const tradeCount = validRows.filter(r => r.Type === 'Trade').length;
+  console.log(`prepareReplay: ${depthCount} Depth, ${tradeCount} Trade`);
 
   const cloned: ReplayRow[] = validRows.map((r) => ({
     ...r,
@@ -29,14 +37,16 @@ export function prepareReplay(rows: any[]): ReplayRow[] {
     if (row.Type === 'Depth') {
       lastDepth = row as DepthRow;
       // Depth 的 BS_Flag 保持為 'None'
-      if (!row.BS_Flag || row.BS_Flag === '') {
+      if (!row.BS_Flag) {
         row.BS_Flag = 'None';
       }
     } else if (row.Type === 'Trade') {
       const trade = row as TradeRow;
 
       // 如果 JSON 已經有 BS_Flag，就不要重新計算
-      if (!trade.BS_Flag || trade.BS_Flag === '' || trade.BS_Flag === 'Unknown') {
+      // 使用 as any 來避免 TypeScript 類型檢查錯誤
+      const bsFlag = trade.BS_Flag as any;
+      if (!bsFlag || bsFlag === '' || bsFlag === 'Unknown') {
         // 只有在沒有 BS_Flag 時才計算
         if (lastDepth) {
           const price = Number(trade.Price ?? 0);
@@ -86,7 +96,10 @@ export function prepareReplay(rows: any[]): ReplayRow[] {
 }
 
 export function getStateAtIndex(data: ReplayRow[], idx: number): StateAtIndex {
+  console.log(`getStateAtIndex called with data.length=${data?.length}, idx=${idx}`);
+
   if (!data || data.length === 0) {
+    console.log('No data available');
     return { lastDepth: null, prevDepth: null, lastTrade: null };
   }
 
@@ -94,6 +107,8 @@ export function getStateAtIndex(data: ReplayRow[], idx: number): StateAtIndex {
   let lastDepth: DepthRow | null = null;
   let prevDepth: DepthRow | null = null;
   let lastTrade: TradeRow | null = null;
+  let depthCount = 0;
+  let tradeCount = 0;
 
   for (let i = 0; i <= clamped; i += 1) {
     const row = data[i];
@@ -102,9 +117,22 @@ export function getStateAtIndex(data: ReplayRow[], idx: number): StateAtIndex {
     if (row.Type === 'Depth') {
       prevDepth = lastDepth;
       lastDepth = row as DepthRow;
+      depthCount++;
     } else if (row.Type === 'Trade') {
       lastTrade = row as TradeRow;
+      tradeCount++;
     }
+  }
+
+  console.log(`getStateAtIndex: processed ${depthCount} Depth and ${tradeCount} Trade rows up to index ${clamped}`);
+  console.log('lastDepth:', lastDepth ? 'Found' : 'Not found');
+
+  if (lastDepth) {
+    console.log('Depth data sample:', {
+      Bid1_Price: lastDepth.Bid1_Price,
+      Ask1_Price: lastDepth.Ask1_Price,
+      Type: lastDepth.Type
+    });
   }
 
   return { lastDepth, prevDepth, lastTrade };

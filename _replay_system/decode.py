@@ -7,11 +7,12 @@ import os
 # 1. 設定檔案與路徑
 # ==========================================
 # 輸入檔案路徑
-file_path = r"C:\Users\User\Documents\_web\_01_web\data\single_query_results\2025-12-24\6274.parquet"
+file_path = r"C:\Users\User\Documents\_web\_01_web\data\single_query_results\2025-12-29\8074.parquet"
+
 
 # 輸出檔案名稱
 output_dir = ""  # 留空表示輸出到當前目錄，或設為 "app" 輸出到 app 子目錄
-output_filename = "6274_1224.json"
+output_filename = "8074_1229.json"
 output_json = os.path.join(output_dir, output_filename) if output_dir else output_filename
 
 if not os.path.exists(file_path):
